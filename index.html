@@ -285,6 +285,12 @@
         <option value="2" selected>보통</option>
         <option value="3">어려움 (느림)</option>
       </select>
+      <select id="turn" title="턴 제한 시간">
+        <option value="30">30초</option>
+        <option value="60">1분</option>
+        <option value="180">3분</option>
+        <option value="300">5분</option>
+      </select>
       <select id="theme" title="체스판 색상">
         <option value="wood">다크 우드</option>
         <option value="purple">보라</option>
@@ -315,7 +321,7 @@
           움직일 기물이 하나도 없으면 그 턴은 그냥 넘어간다. 그때 체크를 받고
           있으면 <b>히트메이트</b>로 패배
         </li>
-        <li>한 턴은 <b>30초</b>. 넘기면 시간패</li>
+        <li>한 턴은 <b id="turn-label">30초</b>. 넘기면 시간패</li>
       </ul>
       <p class="tip">
         요령: 강한 기물 하나로 몰아붙이면 그 기물이 먼저 잠긴다. 여러 기물을

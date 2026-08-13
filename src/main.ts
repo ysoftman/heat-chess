@@ -45,14 +45,13 @@ const NAME: Record<string, string> = {
 	p: "폰",
 };
 
-const TURN_SECONDS = 30;
-
 // 승격을 감안해 부족분만 센다
 const FULL: Record<string, number> = { q: 1, r: 2, b: 2, n: 2, p: 8 };
 const PAWNS: Record<string, number> = { q: 9, r: 5, b: 3, n: 3, p: 1 };
 
 const RECORD_KEY = "heat-chess-record";
 const THEME_KEY = "heat-chess-board";
+const TURN_KEY = "heat-chess-turn";
 
 // 프라이빗 모드 등에서 localStorage 접근 자체가 막힐 수 있다
 function readStore(key: string) {
@@ -81,6 +80,8 @@ const recordEl = document.getElementById("record")!;
 const modeEl = document.getElementById("mode") as HTMLSelectElement;
 const depthEl = document.getElementById("depth") as HTMLSelectElement;
 const themeEl = document.getElementById("theme") as HTMLSelectElement;
+const turnEl = document.getElementById("turn") as HTMLSelectElement;
+const turnLabelEl = document.getElementById("turn-label")!;
 
 let chess = new Chess();
 let heat: Heat = {};
@@ -88,7 +89,7 @@ let sel: string | null = null;
 let busy = false;
 let audio: AudioContext | undefined;
 let timer: ReturnType<typeof setInterval> | undefined;
-let left = TURN_SECONDS;
+let left = 0;
 let record = loadRecord();
 let recorded = false;
 
@@ -151,7 +152,7 @@ function stopClock() {
 // 제한 시간을 넘기면 그 자리에서 진다
 function startClock() {
 	clearInterval(timer);
-	left = TURN_SECONDS;
+	left = Number(turnEl.value);
 	drawClock();
 	timer = setInterval(() => {
 		left--;
@@ -169,7 +170,10 @@ function startClock() {
 }
 
 function drawClock() {
-	clockEl.textContent = `⏱ ${left}`;
+	const min = Math.floor(left / 60);
+	clockEl.textContent = min
+		? `⏱ ${min}:${String(left % 60).padStart(2, "0")}`
+		: `⏱ ${left}`;
 	clockEl.classList.toggle("low", left <= 5);
 }
 
@@ -349,6 +353,16 @@ recordEl.addEventListener("click", () => {
 	record = { w: 0, l: 0, d: 0 };
 	writeStore(RECORD_KEY, null);
 	drawRecord();
+});
+
+// 저장된 값이 옵션에 없으면 select.value 가 "" 가 되니 기본값으로 되돌린다
+turnEl.value = readStore(TURN_KEY) ?? "30";
+if (!turnEl.value) turnEl.value = "30";
+turnLabelEl.textContent = turnEl.selectedOptions[0]!.textContent;
+turnEl.addEventListener("change", () => {
+	writeStore(TURN_KEY, turnEl.value);
+	turnLabelEl.textContent = turnEl.selectedOptions[0]!.textContent;
+	if (timer) startClock();
 });
 
 themeEl.value = readStore(THEME_KEY) ?? "wood";

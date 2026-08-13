@@ -51,11 +51,14 @@ const TURN_SECONDS = 30;
 const FULL: Record<string, number> = { q: 1, r: 2, b: 2, n: 2, p: 8 };
 const PAWNS: Record<string, number> = { q: 9, r: 5, b: 3, n: 3, p: 1 };
 
+const RECORD_KEY = "heat-chess-record";
+
 const boardEl = document.getElementById("board")!;
 const takenTopEl = document.getElementById("taken-top")!;
 const takenBottomEl = document.getElementById("taken-bottom")!;
 const statusEl = document.getElementById("status")!;
 const clockEl = document.getElementById("clock")!;
+const recordEl = document.getElementById("record")!;
 const modeEl = document.getElementById("mode") as HTMLSelectElement;
 const depthEl = document.getElementById("depth") as HTMLSelectElement;
 
@@ -66,6 +69,35 @@ let busy = false;
 let audio: AudioContext | undefined;
 let timer: ReturnType<typeof setInterval> | undefined;
 let left = TURN_SECONDS;
+let record = loadRecord();
+let recorded = false;
+
+// localStorage 는 사용자가 직접 고칠 수 있으니 값을 믿지 않는다
+function loadRecord() {
+	try {
+		const r = JSON.parse(localStorage.getItem(RECORD_KEY) ?? "{}");
+		return { w: Number(r.w) || 0, l: Number(r.l) || 0, d: Number(r.d) || 0 };
+	} catch {
+		return { w: 0, l: 0, d: 0 };
+	}
+}
+
+function drawRecord() {
+	recordEl.textContent = `${record.w}승 ${record.l}패 ${record.d}무`;
+}
+
+// 사람이 백을 잡는 vs AI 판만 전적으로 센다
+function finish(result: "w" | "l" | "d") {
+	if (recorded || modeEl.value !== "ai") return;
+	recorded = true;
+	record[result]++;
+	try {
+		localStorage.setItem(RECORD_KEY, JSON.stringify(record));
+	} catch {
+		// 저장이 막힌 브라우저에서도 이번 판 집계는 화면에 남긴다
+	}
+	drawRecord();
+}
 
 // 무게감은 낮은 기본음 + 피치 하강 + 로우패스에서 나온다
 function thud(freq: number, dur: number, type: OscillatorType, gain = 0.3) {
@@ -114,6 +146,7 @@ function startClock() {
 			busy = true;
 			const winner = chess.turn() === "w" ? "흑" : "백";
 			statusEl.textContent = `시간 초과 — ${winner} 승`;
+			finish(chess.turn() === "w" ? "l" : "w");
 			thud(42, 1.2, "sawtooth", 0.32);
 		}
 	}, 1000);
@@ -250,6 +283,8 @@ function step() {
 	if (st.over) {
 		busy = true;
 		stopClock();
+		const draw = chess.isDraw() || chess.isStalemate();
+		finish(draw ? "d" : chess.turn() === "w" ? "l" : "w");
 		return;
 	}
 	if (st.mustPass) {
@@ -287,10 +322,23 @@ document.getElementById("new")!.addEventListener("click", () => {
 	heat = {};
 	sel = null;
 	busy = false;
+	recorded = false;
 	render();
 	step();
 });
 modeEl.addEventListener("change", () => !busy && step());
 
+recordEl.addEventListener("click", () => {
+	if (!confirm("전적을 지울까요?")) return;
+	record = { w: 0, l: 0, d: 0 };
+	try {
+		localStorage.removeItem(RECORD_KEY);
+	} catch {
+		// 지우지 못해도 화면 표시는 초기화한다
+	}
+	drawRecord();
+});
+
+drawRecord();
 render();
 step();

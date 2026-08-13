@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Heat Chess</title>
+    <title>윤준영의 Heat Chess</title>
     <link rel="icon" href="./favicon.svg" />
     <style>
       :root {
@@ -51,6 +51,21 @@
       }
       #clock.low {
         color: #ff4d3d;
+      }
+      #record {
+        padding: 1px 8px;
+        border: 1px solid #ffffff1f;
+        border-radius: 999px;
+        background: #ffffff0a;
+        color: #9c8570;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #record:hover {
+        color: var(--fg);
+        border-color: var(--accent);
       }
       #board-wrap {
         display: grid;
@@ -216,10 +231,11 @@
     </style>
   </head>
   <body>
-    <h1>Heat Chess</h1>
+    <h1>윤준영의 Heat Chess</h1>
     <div id="bar">
       <span id="status">백 차례</span>
       <span id="clock"></span>
+      <button type="button" id="record" title="클릭하면 전적을 지웁니다"></button>
     </div>
     <div id="board-wrap">
       <div></div>

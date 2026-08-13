@@ -22,6 +22,17 @@ bun test
 bun run build   # dist/
 ```
 
+## 리소스 출처
+
+기물 이미지는 [lichess-org/lila](https://github.com/lichess-org/lila) 의
+`public/piece/cburnett` 세트를 그대로 가져와 `src/piece/` 에 두었다.
+
+- 제작: [Colin M.L. Burnett](https://en.wikipedia.org/wiki/User:Cburnett)
+- 라이선스: [GPLv2+](https://www.gnu.org/licenses/gpl-2.0.txt)
+- 원본 라이선스 목록: [lila COPYING.md](https://github.com/lichess-org/lila/blob/master/COPYING.md)
+
+효과음은 리소스 없이 WebAudio 오실레이터로 합성한다 (이동 / 캡처 / 과열 / 체크).
+
 ## 배포
 
 `main` 에 push 하면 GitHub Actions 가 빌드해서 GitHub Pages 로 올린다.

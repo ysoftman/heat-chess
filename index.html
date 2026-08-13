@@ -37,9 +37,19 @@
         background-clip: text;
         color: transparent;
       }
-      #status {
+      #bar {
+        display: flex;
+        gap: 14px;
+        align-items: baseline;
         min-height: 24px;
         font-weight: 600;
+      }
+      #clock {
+        font-variant-numeric: tabular-nums;
+        color: #ffb066;
+      }
+      #clock.low {
+        color: #ff4d3d;
       }
       #board {
         display: grid;
@@ -69,13 +79,8 @@
         box-shadow: inset 0 0 0 3px var(--accent);
       }
       .pc {
-        font-size: min(9vw, 46px);
-        line-height: 1;
-        color: #1b1512;
-      }
-      .w {
-        color: #fffaf4;
-        text-shadow: 0 1px 2px #0008;
+        width: 86%;
+        height: 86%;
       }
       .hot {
         filter: drop-shadow(0 0 calc(var(--h) * 4px) hsl(calc(45 - var(--h) * 15) 100% 55%));
@@ -140,7 +145,10 @@
   </head>
   <body>
     <h1>Heat Chess</h1>
-    <div id="status">백 차례</div>
+    <div id="bar">
+      <span id="status">백 차례</span>
+      <span id="clock"></span>
+    </div>
     <div id="board"></div>
     <div id="controls">
       <button type="button" id="new">새 게임</button>

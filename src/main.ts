@@ -52,6 +52,25 @@ const FULL: Record<string, number> = { q: 1, r: 2, b: 2, n: 2, p: 8 };
 const PAWNS: Record<string, number> = { q: 9, r: 5, b: 3, n: 3, p: 1 };
 
 const RECORD_KEY = "heat-chess-record";
+const THEME_KEY = "heat-chess-board";
+
+// 프라이빗 모드 등에서 localStorage 접근 자체가 막힐 수 있다
+function readStore(key: string) {
+	try {
+		return localStorage.getItem(key);
+	} catch {
+		return null;
+	}
+}
+
+function writeStore(key: string, value: string | null) {
+	try {
+		if (value === null) localStorage.removeItem(key);
+		else localStorage.setItem(key, value);
+	} catch {
+		// 저장이 막혀도 이번 세션 표시는 유지된다
+	}
+}
 
 const boardEl = document.getElementById("board")!;
 const takenTopEl = document.getElementById("taken-top")!;
@@ -61,6 +80,7 @@ const clockEl = document.getElementById("clock")!;
 const recordEl = document.getElementById("record")!;
 const modeEl = document.getElementById("mode") as HTMLSelectElement;
 const depthEl = document.getElementById("depth") as HTMLSelectElement;
+const themeEl = document.getElementById("theme") as HTMLSelectElement;
 
 let chess = new Chess();
 let heat: Heat = {};
@@ -75,7 +95,7 @@ let recorded = false;
 // localStorage 는 사용자가 직접 고칠 수 있으니 값을 믿지 않는다
 function loadRecord() {
 	try {
-		const r = JSON.parse(localStorage.getItem(RECORD_KEY) ?? "{}");
+		const r = JSON.parse(readStore(RECORD_KEY) ?? "{}");
 		return { w: Number(r.w) || 0, l: Number(r.l) || 0, d: Number(r.d) || 0 };
 	} catch {
 		return { w: 0, l: 0, d: 0 };
@@ -91,11 +111,7 @@ function finish(result: "w" | "l" | "d") {
 	if (recorded || modeEl.value !== "ai") return;
 	recorded = true;
 	record[result]++;
-	try {
-		localStorage.setItem(RECORD_KEY, JSON.stringify(record));
-	} catch {
-		// 저장이 막힌 브라우저에서도 이번 판 집계는 화면에 남긴다
-	}
+	writeStore(RECORD_KEY, JSON.stringify(record));
 	drawRecord();
 }
 
@@ -331,12 +347,15 @@ modeEl.addEventListener("change", () => !busy && step());
 recordEl.addEventListener("click", () => {
 	if (!confirm("전적을 지울까요?")) return;
 	record = { w: 0, l: 0, d: 0 };
-	try {
-		localStorage.removeItem(RECORD_KEY);
-	} catch {
-		// 지우지 못해도 화면 표시는 초기화한다
-	}
+	writeStore(RECORD_KEY, null);
 	drawRecord();
+});
+
+themeEl.value = readStore(THEME_KEY) ?? "wood";
+document.body.dataset.board = themeEl.value;
+themeEl.addEventListener("change", () => {
+	document.body.dataset.board = themeEl.value;
+	writeStore(THEME_KEY, themeEl.value);
 });
 
 drawRecord();

@@ -13,6 +13,27 @@
         --dark: #6f5b48;
         --accent: #ff7a1a;
       }
+      /* 색상값은 lichess(lila) ui/lib/css/theme/board/_boards.scss 참고 */
+      body[data-board="purple"] {
+        --light: #9f90b0;
+        --dark: #7d4a8d;
+      }
+      body[data-board="lilac"] {
+        --light: #e5daf0;
+        --dark: #957ab0;
+      }
+      body[data-board="brown"] {
+        --light: #f0d9b5;
+        --dark: #946f51;
+      }
+      body[data-board="blue"] {
+        --light: #dee3e6;
+        --dark: #788a94;
+      }
+      body[data-board="green"] {
+        --light: #ffffdd;
+        --dark: #6d8753;
+      }
       * {
         box-sizing: border-box;
       }
@@ -263,6 +284,14 @@
         <option value="1">쉬움</option>
         <option value="2" selected>보통</option>
         <option value="3">어려움 (느림)</option>
+      </select>
+      <select id="theme" title="체스판 색상">
+        <option value="wood">다크 우드</option>
+        <option value="purple">보라</option>
+        <option value="lilac">연보라</option>
+        <option value="brown">브라운</option>
+        <option value="blue">블루</option>
+        <option value="green">그린</option>
       </select>
     </div>
     <details id="help" open>

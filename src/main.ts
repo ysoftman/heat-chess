@@ -61,25 +61,31 @@ let audio: AudioContext | undefined;
 let timer: ReturnType<typeof setInterval> | undefined;
 let left = TURN_SECONDS;
 
-function beep(freq: number, dur: number, type: OscillatorType, gain = 0.12) {
+// 무게감은 낮은 기본음 + 피치 하강 + 로우패스에서 나온다
+function thud(freq: number, dur: number, type: OscillatorType, gain = 0.3) {
 	audio ??= new AudioContext();
 	const t = audio.currentTime;
 	const osc = audio.createOscillator();
 	const amp = audio.createGain();
+	const lp = audio.createBiquadFilter();
+	lp.type = "lowpass";
+	lp.frequency.setValueAtTime(freq * 8, t);
+	lp.frequency.exponentialRampToValueAtTime(freq * 1.5, t + dur);
 	osc.type = type;
 	osc.frequency.setValueAtTime(freq, t);
+	osc.frequency.exponentialRampToValueAtTime(freq * 0.45, t + dur);
 	amp.gain.setValueAtTime(gain, t);
 	amp.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-	osc.connect(amp).connect(audio.destination);
+	osc.connect(lp).connect(amp).connect(audio.destination);
 	osc.start(t);
 	osc.stop(t + dur);
 }
 
 function playSound(m: Move, overheated: boolean) {
-	if (overheated) beep(90, 0.35, "sawtooth", 0.1);
-	else if (m.captured) beep(180, 0.14, "square", 0.1);
-	else beep(520, 0.06, "triangle");
-	if (chess.isCheck()) setTimeout(() => beep(880, 0.12, "sine"), 90);
+	if (overheated) thud(48, 0.85, "sawtooth", 0.3);
+	else if (m.captured) thud(78, 0.42, "square", 0.32);
+	else thud(135, 0.22, "sine", 0.34);
+	if (chess.isCheck()) setTimeout(() => thud(190, 0.4, "triangle", 0.3), 130);
 }
 
 function stopClock() {
@@ -96,13 +102,13 @@ function startClock() {
 	timer = setInterval(() => {
 		left--;
 		drawClock();
-		if (left <= 5 && left > 0) beep(1200, 0.05, "sine", 0.06);
+		if (left <= 5 && left > 0) thud(220, 0.12, "sine", 0.18);
 		if (left <= 0) {
 			stopClock();
 			busy = true;
 			const winner = chess.turn() === "w" ? "흑" : "백";
 			statusEl.textContent = `시간 초과 — ${winner} 승`;
-			beep(110, 0.6, "sawtooth", 0.12);
+			thud(42, 1.2, "sawtooth", 0.32);
 		}
 	}, 1000);
 }

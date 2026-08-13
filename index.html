@@ -89,15 +89,17 @@
         opacity: 0.4;
       }
       .badge {
-        position: absolute;
-        top: 2px;
-        right: 3px;
         font-size: min(2.6vw, 12px);
         font-weight: 700;
         padding: 0 4px;
         border-radius: 6px;
         background: #ff6a00;
         color: #fff;
+      }
+      .sq .badge {
+        position: absolute;
+        top: 2px;
+        right: 3px;
       }
       .badge.cold {
         background: #3b82f6;
@@ -134,12 +136,34 @@
       button:hover {
         border-color: var(--accent);
       }
-      p.rules {
-        max-width: 560px;
-        margin: 0;
-        text-align: center;
-        opacity: 0.65;
-        font-size: 13px;
+      #help {
+        max-width: min(92vw, 560px);
+        font-size: 14px;
+        background: #ffffff08;
+        border: 1px solid #ffffff14;
+        border-radius: 10px;
+        padding: 10px 16px;
+      }
+      #help summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: #ffb066;
+      }
+      #help ul {
+        margin: 10px 0 0;
+        padding-left: 18px;
+      }
+      #help li {
+        margin-bottom: 7px;
+      }
+      #help b {
+        color: #ffd6ac;
+      }
+      #help .tip {
+        margin: 10px 0 0;
+        padding-top: 8px;
+        border-top: 1px solid #ffffff14;
+        opacity: 0.75;
       }
     </style>
   </head>
@@ -162,10 +186,34 @@
         <option value="3">어려움 (느림)</option>
       </select>
     </div>
-    <p class="rules">
-      기물을 움직이면 heat +1, 쉬면 -1. heat 4 에 닿으면 과열되어 2턴간 움직일 수
-      없다 (파란 배지). 킹은 과열되지 않는다.
-    </p>
+    <details id="help" open>
+      <summary>규칙 — 체스와 같지만, 같은 기물을 계속 굴리면 뻗는다</summary>
+      <ul>
+        <li>
+          내 차례에 수를 두면, <b>움직인 기물</b>은 열이 오른다
+          <span class="badge">1</span> → <span class="badge">2</span> →
+          <span class="badge">3</span>
+        </li>
+        <li>
+          같은 순간, 이번에 <b>안 움직인 내 기물</b>은 열이 1씩 식는다. 상대가 둘
+          때는 <b>식지 않는다</b> — 내 차례에만 정산된다
+        </li>
+        <li>
+          열이 <b>4</b>에 닿으면 과열 <span class="badge cold">❄2</span> — 그
+          기물은 <b>내 차례 2번</b> 동안 못 움직인다. 풀리면 열은 0부터 다시
+        </li>
+        <li><b>킹은 달아오르지 않는다</b> — 체크를 못 피하면 게임이 막히니까</li>
+        <li>
+          움직일 기물이 하나도 없으면 그 턴은 그냥 넘어간다. 그때 체크를 받고
+          있으면 <b>히트메이트</b>로 패배
+        </li>
+        <li>한 턴은 <b>30초</b>. 넘기면 시간패</li>
+      </ul>
+      <p class="tip">
+        요령: 강한 기물 하나로 몰아붙이면 그 기물이 먼저 잠긴다. 여러 기물을
+        번갈아 쓰고, 상대의 핵심 기물이 뜨거워졌을 때 몰아치면 된다.
+      </p>
+    </details>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

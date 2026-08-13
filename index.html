@@ -51,11 +51,35 @@
       #clock.low {
         color: #ff4d3d;
       }
+      #board-wrap {
+        display: grid;
+        grid-template-columns: 20px minmax(0, min(88vw, 560px));
+        grid-template-rows: auto auto 20px auto;
+        column-gap: 2px;
+      }
+      #ranks,
+      #files {
+        display: grid;
+        font-size: 12px;
+        font-weight: 700;
+        color: #9c8570;
+      }
+      #ranks {
+        grid-template-rows: repeat(8, 1fr);
+      }
+      #files {
+        grid-template-columns: repeat(8, 1fr);
+      }
+      #ranks span,
+      #files span {
+        display: grid;
+        place-items: center;
+      }
       #board {
         display: grid;
         grid-template-columns: repeat(8, 1fr);
         grid-template-rows: repeat(8, 1fr);
-        width: min(92vw, 560px);
+        width: 100%;
         aspect-ratio: 1;
         border: 3px solid #3b2c22;
         border-radius: 6px;
@@ -100,6 +124,29 @@
         position: absolute;
         top: 2px;
         right: 3px;
+      }
+      .taken {
+        display: flex;
+        align-items: center;
+        gap: 1px;
+        height: 28px;
+      }
+      .taken .who {
+        margin-right: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #9c8570;
+      }
+      .taken img {
+        width: 22px;
+        height: 22px;
+        opacity: 0.8;
+      }
+      .taken .edge {
+        margin-left: 7px;
+        font-weight: 700;
+        font-size: 13px;
+        color: #ffb066;
       }
       .badge.cold {
         background: #3b82f6;
@@ -173,7 +220,22 @@
       <span id="status">백 차례</span>
       <span id="clock"></span>
     </div>
-    <div id="board"></div>
+    <div id="board-wrap">
+      <div></div>
+      <div class="taken" id="taken-top"></div>
+      <div id="ranks">
+        <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span
+        ><span>3</span><span>2</span><span>1</span>
+      </div>
+      <div id="board"></div>
+      <div></div>
+      <div id="files">
+        <span>a</span><span>b</span><span>c</span><span>d</span><span>e</span
+        ><span>f</span><span>g</span><span>h</span>
+      </div>
+      <div></div>
+      <div class="taken" id="taken-bottom"></div>
+    </div>
     <div id="controls">
       <button type="button" id="new">새 게임</button>
       <select id="mode">

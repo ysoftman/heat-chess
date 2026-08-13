@@ -47,7 +47,13 @@ const NAME: Record<string, string> = {
 
 const TURN_SECONDS = 30;
 
+// 승격을 감안해 부족분만 센다
+const FULL: Record<string, number> = { q: 1, r: 2, b: 2, n: 2, p: 8 };
+const PAWNS: Record<string, number> = { q: 9, r: 5, b: 3, n: 3, p: 1 };
+
 const boardEl = document.getElementById("board")!;
+const takenTopEl = document.getElementById("taken-top")!;
+const takenBottomEl = document.getElementById("taken-bottom")!;
 const statusEl = document.getElementById("status")!;
 const clockEl = document.getElementById("clock")!;
 const modeEl = document.getElementById("mode") as HTMLSelectElement;
@@ -118,7 +124,69 @@ function drawClock() {
 	clockEl.classList.toggle("low", left <= 5);
 }
 
+// 히스토리는 pass() 의 FEN 재적재로 날아가므로 남은 기물에서 역산한다
+function lost(color: "w" | "b") {
+	const have: Record<string, number> = {};
+	for (const row of chess.board())
+		for (const p of row)
+			if (p?.color === color) have[p.type] = (have[p.type] ?? 0) + 1;
+	const gone: string[] = [];
+	for (const [type, full] of Object.entries(FULL))
+		for (let i = have[type] ?? 0; i < full; i++) gone.push(type);
+	return gone;
+}
+
+function renderTaken() {
+	const lostW = lost("w");
+	const lostB = lost("b");
+	const worth = (g: string[]) => g.reduce((s, t) => s + PAWNS[t]!, 0);
+	const edge = worth(lostB) - worth(lostW);
+	// 각 진영 쪽에 그 진영이 잡은 상대 기물을 둔다 (위=흑, 아래=백)
+	fillTray(
+		takenTopEl,
+		"흑이 잡은 기물",
+		lostW,
+		"w",
+		edge < 0 ? `+${-edge}` : "",
+	);
+	fillTray(
+		takenBottomEl,
+		"백이 잡은 기물",
+		lostB,
+		"b",
+		edge > 0 ? `+${edge}` : "",
+	);
+}
+
+function fillTray(
+	el: HTMLElement,
+	who: string,
+	gone: string[],
+	color: string,
+	edge: string,
+) {
+	const label = document.createElement("span");
+	label.className = "who";
+	label.textContent = who;
+	el.replaceChildren(
+		label,
+		...gone.map((type) => {
+			const img = document.createElement("img");
+			img.src = PIECE[color + type]!;
+			img.alt = `잡힌 ${color === "w" ? "백" : "흑"} ${NAME[type]}`;
+			return img;
+		}),
+	);
+	if (edge) {
+		const span = document.createElement("span");
+		span.className = "edge";
+		span.textContent = edge;
+		el.append(span);
+	}
+}
+
 function render() {
+	renderTaken();
 	const board = chess.board();
 	const targets = sel
 		? legalMoves(chess, heat).filter((m) => m.from === sel)

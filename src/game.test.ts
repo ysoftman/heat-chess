@@ -1,6 +1,13 @@
 import { expect, test } from "bun:test";
 import { Chess } from "chess.js";
-import { applyHeat, bestMove, type Heat, legalMoves } from "./game";
+import {
+	airconAfter,
+	applyHeat,
+	bestMove,
+	capturedSquare,
+	type Heat,
+	legalMoves,
+} from "./game";
 
 function play(sans: string[]) {
 	const chess = new Chess();
@@ -53,6 +60,26 @@ test("앙파상으로 잡힌 폰의 heat 도 사라진다", () => {
 	const { h } = play(["e4", "a6", "e5", "d5", "exd6"]);
 	expect(h.d5).toBeUndefined();
 	expect(h.d6!.heat).toBe(3);
+});
+
+test("에어콘 기물 칸은 이동과 캐슬링 룩을 따라간다", () => {
+	const chess = new Chess();
+	let rook: string | null = "h1"; // 백 h룩을 에어콘으로
+	let pawn: string | null = "e2"; // 백 e폰을 에어콘으로
+	for (const san of ["e4", "e5", "Nf3", "Nf6", "Bc4", "Bc5", "O-O"]) {
+		const m = chess.move(san);
+		if (m.color !== "w") continue;
+		rook = airconAfter(m, rook);
+		pawn = airconAfter(m, pawn);
+	}
+	expect(rook).toBe("f1");
+	expect(pawn).toBe("e4");
+});
+
+test("앙파상의 실제 잡힌 칸을 알아낸다", () => {
+	const chess = new Chess();
+	for (const san of ["e4", "a6", "e5", "d5"]) chess.move(san);
+	expect(capturedSquare(chess.move("exd6"))).toBe("d5");
 });
 
 test("AI 는 과열되지 않은 합법수를 고른다", () => {

@@ -34,10 +34,22 @@ function heatUp(h: Heat, from: string, to: string, color: Color) {
 			: { heat, lock: 0, color };
 }
 
+// 앙파상은 잡힌 폰이 도착 칸과 다른 칸에 있다
+export const capturedSquare = (m: Move) =>
+	m.flags.includes("e") ? m.to[0]! + m.from[1] : m.to;
+
+// 에어콘 기물 칸을 수를 따라 갱신 — 캐슬링 룩 동행 포함
+export function airconAfter(m: Move, sq: string | null): string | null {
+	if (sq === m.from) return m.to;
+	const rank = m.from[1];
+	if (m.flags.includes("k") && sq === "h" + rank) return "f" + rank;
+	if (m.flags.includes("q") && sq === "a" + rank) return "d" + rank;
+	return sq;
+}
+
 export function applyHeat(prev: Heat, m: Move): Heat {
 	const h = clone(prev);
-	// 잡힌 기물의 heat 제거 (앙파상은 잡힌 폰이 다른 칸에 있음)
-	delete h[m.flags.includes("e") ? m.to[0]! + m.from[1] : m.to];
+	delete h[capturedSquare(m)];
 	cool(h, m.color, m.from);
 	// 킹은 과열되지 않는다 — 아니면 체크를 피하지 못해 게임이 막힌다
 	if (m.piece === "k") delete h[m.from];

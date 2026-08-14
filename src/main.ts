@@ -1,7 +1,9 @@
-import { Chess, type Move } from "chess.js";
+import { Chess, type Move, type Square } from "chess.js";
 import {
+	airconAfter,
 	applyHeat,
 	bestMove,
+	capturedSquare,
 	type Heat,
 	legalMoves,
 	pass,
@@ -87,6 +89,9 @@ let chess = new Chess();
 let heat: Heat = {};
 let sel: string | null = null;
 let busy = false;
+let airconOn = false;
+let airconSq: Record<"w" | "b", string | null> = { w: null, b: null };
+let picking: "w" | "b" | null = null;
 let audio: AudioContext | undefined;
 let timer: ReturnType<typeof setInterval> | undefined;
 let left = 0;
@@ -282,6 +287,13 @@ function render() {
 						el.append(badge);
 					}
 				}
+				// 내 에어콘 기물 표시 — vs AI 에서만. 2인 플레이는 화면을 같이 보므로 숨긴다
+				if (sq === airconSq.w && modeEl.value === "ai") {
+					el.classList.add("aircon");
+					const wind = document.createElement("span");
+					wind.className = "wind";
+					el.append(wind);
+				}
 				return el;
 			}),
 		),
@@ -292,8 +304,20 @@ function doMove(from: string, to: string) {
 	const move = chess.move({ from, to, promotion: "q" });
 	heat = applyHeat(heat, move);
 	sel = null;
+	airconSq[move.color] = airconAfter(move, airconSq[move.color]);
+	const foe = move.color === "w" ? "b" : "w";
+	const hit = !!move.captured && airconSq[foe] === capturedSquare(move);
+	if (hit) airconSq[foe] = null;
 	render();
 	playSound(move, (heat[to]?.lock ?? 0) > 0);
+	if (hit) {
+		busy = true;
+		stopClock();
+		statusEl.textContent = `❄ 에어콘 기물 격추 — ${move.color === "w" ? "백" : "흑"} 승`;
+		finish(move.color === "w" ? "w" : "l");
+		thud(42, 1.2, "sawtooth", 0.32);
+		return;
+	}
 	setTimeout(step, 20);
 }
 
@@ -325,10 +349,40 @@ function step() {
 	} else startClock();
 }
 
+const pickText = () =>
+	modeEl.value === "ai"
+		? "에어콘 기물을 클릭해 지정하세요 (킹 제외)"
+		: `${picking === "w" ? "백" : "흑"}: 에어콘 기물 몰래 클릭 (킹 제외, 상대는 눈 감기)`;
+
+// 킹은 잡히기 전에 메이트가 나므로 에어콘으로 고르면 규칙이 무력화된다
+function randomAircon(color: "w" | "b") {
+	const own: string[] = [];
+	chess.board().forEach((row, r) => {
+		row.forEach((p, f) => {
+			if (p?.color === color && p.type !== "k")
+				own.push("abcdefgh"[f]! + (8 - r));
+		});
+	});
+	return own[Math.floor(Math.random() * own.length)]!;
+}
+
 boardEl.addEventListener("click", (e) => {
 	if (busy) return;
 	const sq = (e.target as HTMLElement).closest<HTMLElement>(".sq")?.dataset.sq;
 	if (!sq) return;
+	if (picking) {
+		const p = chess.get(sq as Square);
+		if (!p || p.color !== picking || p.type === "k") return;
+		airconSq[picking] = sq;
+		if (modeEl.value === "ai") {
+			airconSq.b = randomAircon("b");
+			picking = null;
+		} else picking = picking === "w" ? "b" : null;
+		render();
+		if (picking) statusEl.textContent = pickText();
+		else step();
+		return;
+	}
 	const moves = legalMoves(chess, heat);
 	if (sel && moves.some((m) => m.from === sel && m.to === sq)) doMove(sel, sq);
 	else {
@@ -337,16 +391,29 @@ boardEl.addEventListener("click", (e) => {
 	}
 });
 
-document.getElementById("new")!.addEventListener("click", () => {
+function newGame() {
 	chess = new Chess();
 	heat = {};
 	sel = null;
 	busy = false;
 	recorded = false;
+	airconSq = { w: null, b: null };
+	picking = airconOn ? "w" : null;
+	stopClock();
 	render();
-	step();
+	if (picking) statusEl.textContent = pickText();
+	else step();
+}
+
+document.getElementById("new")!.addEventListener("click", newGame);
+modeEl.addEventListener("change", () => !busy && !picking && step());
+
+const airconEl = document.getElementById("aircon")!;
+airconEl.addEventListener("click", () => {
+	airconOn = !airconOn;
+	airconEl.classList.toggle("on", airconOn);
+	newGame();
 });
-modeEl.addEventListener("change", () => !busy && step());
 
 recordEl.addEventListener("click", () => {
 	if (!confirm("전적을 지울까요?")) return;

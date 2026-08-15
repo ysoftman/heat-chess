@@ -598,6 +598,9 @@
           text-overflow: ellipsis;
           white-space: nowrap;
         }
+        #sound {
+          grid-column: 4;
+        }
         #moves-panel,
         #help {
           width: 100%;
@@ -638,24 +641,20 @@
       <div id="right">
     <div id="controls">
       <button type="button" id="new-game" title="현재 모드로 새 게임">새 게임</button>
-      <button type="button" id="game-mode" title="게임 모드 전환">🔥 히트</button>
-      <button type="button" id="undo" title="수 되돌리기" disabled>↩ 되돌리기</button>
-      <button type="button" id="sound" title="효과음 끄기">🔊</button>
-      <select id="mode">
-        <option value="ai">vs AI</option>
-        <option value="two">2인 플레이</option>
-      </select>
-      <select id="depth">
-        <option value="1">쉬움</option>
-        <option value="2" selected>보통</option>
-        <option value="3">어려움 (느림)</option>
-      </select>
       <select id="turn" title="턴 제한 시간">
         <option value="30">30초</option>
         <option value="60">1분</option>
         <option value="180">3분</option>
         <option value="300">5분</option>
       </select>
+      <button type="button" id="game-mode" title="게임 모드 전환">🔥 히트</button>
+      <select id="mode" title="게임 모드와 AI 난이도">
+        <option value="ai1">vs AI(쉬움)</option>
+        <option value="ai2" selected>vs AI(보통)</option>
+        <option value="ai3">vs AI(어려움)</option>
+        <option value="two">2인 플레이</option>
+      </select>
+      <button type="button" id="undo" title="수 되돌리기" disabled>↩ 되돌리기</button>
       <select id="theme" title="체스판 색상">
         <option value="wood">다크 우드</option>
         <option value="purple">보라</option>
@@ -664,6 +663,7 @@
         <option value="blue">블루</option>
         <option value="green">그린</option>
       </select>
+      <button type="button" id="sound" title="효과음 끄기">🔊</button>
     </div>
     <details id="moves-panel" open>
       <summary>수 기록</summary>

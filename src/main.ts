@@ -80,7 +80,6 @@ const statusEl = document.getElementById("status")!;
 const clockEl = document.getElementById("clock")!;
 const recordEl = document.getElementById("record")!;
 const modeEl = document.getElementById("mode") as HTMLSelectElement;
-const depthEl = document.getElementById("depth") as HTMLSelectElement;
 const themeEl = document.getElementById("theme") as HTMLSelectElement;
 const turnEl = document.getElementById("turn") as HTMLSelectElement;
 const turnLabelEl = document.getElementById("turn-label")!;
@@ -134,7 +133,7 @@ function drawRecord() {
 
 // 사람이 백을 잡는 vs AI 판만 전적으로 센다
 function finish(result: "w" | "l" | "d") {
-	if (recorded || modeEl.value !== "ai") return;
+	if (recorded || !modeEl.value.startsWith("ai")) return;
 	recorded = true;
 	record[result]++;
 	writeStore(RECORD_KEY, JSON.stringify(record));
@@ -327,7 +326,7 @@ function render() {
 					}
 				}
 				// 내 에어콘 기물 표시 — vs AI 에서만. 2인 플레이는 화면을 같이 보므로 숨긴다
-				if (sq === airconSq.w && modeEl.value === "ai") {
+				if (sq === airconSq.w && modeEl.value.startsWith("ai")) {
 					el.classList.add("aircon");
 					// 바람 줄기 두 레이어 (두 번째는 더 큰 바람이 드물게)
 					const wind = document.createElement("span");
@@ -414,7 +413,7 @@ function step() {
 		}, 700);
 		return;
 	}
-	if (modeEl.value === "ai" && chess.turn() === "b") {
+	if (modeEl.value.startsWith("ai") && chess.turn() === "b") {
 		busy = true;
 		stopClock();
 		statusEl.textContent = "AI 생각 중…";
@@ -422,7 +421,7 @@ function step() {
 			const m = bestMove(
 				chess,
 				heat,
-				Number(depthEl.value),
+				Number(modeEl.value.slice(2)),
 				airconOn,
 				airconOn ? airconSq.b : null,
 			);
@@ -439,7 +438,7 @@ function step() {
 }
 
 const pickText = () =>
-	modeEl.value === "ai"
+	modeEl.value.startsWith("ai")
 		? "에어콘 기물을 클릭해 지정하세요 (킹 제외)"
 		: `${picking === "w" ? "백" : "흑"}: 에어콘 기물 몰래 클릭 (킹 제외, 상대는 눈 감기)`;
 
@@ -493,7 +492,7 @@ boardEl.addEventListener("click", (e) => {
 		const p = chess.get(sq as Square);
 		if (!p || p.color !== picking || p.type === "k") return;
 		airconSq[picking] = sq;
-		if (modeEl.value === "ai") {
+		if (modeEl.value.startsWith("ai")) {
 			airconSq.b = randomAircon("b");
 			picking = null;
 		} else picking = picking === "w" ? "b" : null;
@@ -503,7 +502,7 @@ boardEl.addEventListener("click", (e) => {
 		return;
 	}
 	// AI(흑) 차례에는 사람 클릭으로 수를 두지 못한다
-	if (modeEl.value === "ai" && chess.turn() === "b") return;
+	if (modeEl.value.startsWith("ai") && chess.turn() === "b") return;
 	const moves = legalMoves(chess, heat);
 	if (sel && moves.some((m) => m.from === sel && m.to === sq)) {
 		const opts = moves.filter((m) => m.from === sel && m.to === sq);

@@ -8,11 +8,18 @@
     <style>
       :root {
         --bg: #14110f;
+        --surface: #241b15;
+        --surface-hi: #2e231b;
+        --line: #3f3126;
         --fg: #ece5df;
+        --muted: #a18a74;
         --light: #b9a894;
         --dark: #6f5b48;
         --accent: #ff7a1a;
+        --warm: #ffb066;
+        --cool: #6fd3ff;
       }
+      /* radius 체계: 컨트롤(버튼/셀렉트) 8px, 패널/보드/모달 12px, #record 상태 필만 pill */
       /* 색상값은 lichess(lila) ui/lib/css/theme/board/_boards.scss 참고 */
       body[data-board="purple"] {
         --light: #9f90b0;
@@ -39,25 +46,29 @@
       }
       body {
         margin: 0;
-        min-height: 100vh;
+        min-height: 100dvh;
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 14px;
-        padding: 24px 12px 40px;
-        background: radial-gradient(120% 90% at 50% 0%, #2a1d14, var(--bg));
+        gap: 16px;
+        padding: 28px 12px 40px;
+        background: radial-gradient(120% 90% at 50% 0%, #261a12, var(--bg));
         color: var(--fg);
-        font: 15px/1.5 system-ui, -apple-system, sans-serif;
+        font:
+          15px/1.5 system-ui,
+          -apple-system,
+          sans-serif;
       }
       h1 {
         margin: 0;
-        font-size: 26px;
-        letter-spacing: 0.06em;
+        font-size: 23px;
+        font-weight: 800;
+        letter-spacing: 0.07em;
         text-transform: uppercase;
-        background: linear-gradient(90deg, #ffd08a, var(--accent));
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
+        color: var(--fg);
+      }
+      h1 .brand {
+        color: var(--accent);
       }
       #bar {
         display: flex;
@@ -67,22 +78,27 @@
         font-weight: 600;
       }
       #clock {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 14px;
         font-variant-numeric: tabular-nums;
-        color: #ffb066;
+        color: var(--warm);
       }
       #clock.low {
         color: #ff4d3d;
       }
       #record {
-        padding: 1px 8px;
-        border: 1px solid #ffffff1f;
+        padding: 1px 9px;
+        border: 1px solid var(--line);
         border-radius: 999px;
-        background: #ffffff0a;
-        color: #9c8570;
+        background: var(--surface);
+        color: var(--muted);
         font: inherit;
         font-size: 12px;
         font-weight: 600;
         cursor: pointer;
+        transition:
+          border-color 0.15s,
+          color 0.15s;
       }
       #record:hover {
         color: var(--fg);
@@ -97,9 +113,9 @@
       #ranks,
       #files {
         display: grid;
-        font-size: 12px;
-        font-weight: 700;
-        color: #9c8570;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
       }
       #ranks {
         grid-template-rows: repeat(8, 1fr);
@@ -118,10 +134,11 @@
         grid-template-rows: repeat(8, 1fr);
         width: 100%;
         aspect-ratio: 1;
-        border: 3px solid #3b2c22;
-        border-radius: 6px;
+        border: 4px solid var(--surface);
+        outline: 1px solid var(--line);
+        border-radius: 12px;
         overflow: hidden;
-        box-shadow: 0 12px 40px #0009;
+        box-shadow: 0 24px 60px -16px #000d;
       }
       .sq {
         position: relative;
@@ -137,7 +154,9 @@
         background: var(--dark);
       }
       .sel {
-        box-shadow: inset 0 0 0 3px var(--accent);
+        box-shadow:
+          inset 0 0 0 3px var(--accent),
+          inset 0 0 18px #ff7a1a44;
       }
       .pc {
         width: 86%;
@@ -206,7 +225,9 @@
         font-size: min(3.5vw, 18px);
         line-height: 1;
         color: #ffd9a8;
-        text-shadow: 0 0 8px #ff7a1a, 0 0 16px #ff5a00;
+        text-shadow:
+          0 0 8px #ff7a1a,
+          0 0 16px #ff5a00;
         opacity: 0;
         animation: rise 1.9s linear infinite;
       }
@@ -251,7 +272,7 @@
         margin-right: 8px;
         font-size: 12px;
         font-weight: 600;
-        color: #9c8570;
+        color: var(--muted);
       }
       .taken img {
         width: 22px;
@@ -264,7 +285,7 @@
         margin-left: 7px;
         font-weight: 700;
         font-size: 13px;
-        color: #ffb066;
+        color: var(--warm);
       }
       /* 과열 배지 — 흰 빛을 머금은 열 그라데이션 (기존 파랑 ❄ 배지의 대체) */
       .badge.overheat {
@@ -286,7 +307,7 @@
         border: 4px solid #0006;
       }
       #game-mode.on {
-        border-color: #6fd3ff;
+        border-color: var(--cool);
         color: #bfeaff;
         background: #12242e;
       }
@@ -349,7 +370,9 @@
         left: -30%;
         font-size: min(4.5vw, 24px);
         color: #dff4ff;
-        text-shadow: 0 0 6px #6fd3ff, 0 0 14px #4fb8ff;
+        text-shadow:
+          0 0 6px #6fd3ff,
+          0 0 14px #4fb8ff;
         opacity: 0;
         animation: gust 1.5s linear infinite;
       }
@@ -463,32 +486,62 @@
       button,
       select {
         font: inherit;
-        padding: 6px 12px;
+        font-weight: 600;
+        padding: 7px 12px;
         border-radius: 8px;
-        border: 1px solid #5a4535;
-        background: #251b15;
+        border: 1px solid var(--line);
+        background: var(--surface);
         color: var(--fg);
         cursor: pointer;
+        transition:
+          border-color 0.15s,
+          background-color 0.15s;
       }
-      button:hover {
+      button:hover,
+      select:hover {
         border-color: var(--accent);
+        background: var(--surface-hi);
+      }
+      button:active {
+        transform: translateY(1px);
+      }
+      button:focus-visible,
+      select:focus-visible,
+      summary:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      #new-game {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #201005;
+        font-weight: 700;
+      }
+      #new-game:hover {
+        background: #ff8c3a;
+        border-color: #ff8c3a;
       }
       #undo:disabled {
         opacity: 0.35;
         cursor: default;
-        border-color: #5a4535;
+        border-color: var(--line);
+        background: var(--surface);
       }
       #moves-panel {
         width: min(92vw, 560px);
-        background: #ffffff08;
-        border: 1px solid #ffffff14;
-        border-radius: 10px;
-        padding: 6px 16px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 8px 16px;
       }
       #moves-panel summary {
         cursor: pointer;
         font-weight: 600;
-        color: #ffb066;
+        color: var(--warm);
+      }
+      #moves:empty::before {
+        content: "아직 둔 수가 없습니다";
+        color: var(--muted);
       }
       #moves {
         margin-top: 6px;
@@ -496,6 +549,7 @@
         overflow-y: auto;
         font-size: 13px;
         line-height: 1.9;
+        font-variant-numeric: tabular-nums;
         color: #d8cfc5;
       }
       #promo {
@@ -515,13 +569,13 @@
         gap: 10px;
         padding: 14px 18px;
         border-radius: 12px;
-        border: 1px solid #5a4535;
-        background: #251b15;
+        border: 1px solid var(--line);
+        background: var(--surface);
         box-shadow: 0 12px 40px #000c;
       }
       #promo-box span {
         font-weight: 600;
-        color: #ffb066;
+        color: var(--warm);
         margin-right: 4px;
       }
       #promo-box button {
@@ -536,15 +590,15 @@
       #help {
         max-width: min(92vw, 560px);
         font-size: 14px;
-        background: #ffffff08;
-        border: 1px solid #ffffff14;
-        border-radius: 10px;
-        padding: 10px 16px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 16px;
       }
       #help summary {
         cursor: pointer;
         font-weight: 600;
-        color: #ffb066;
+        color: var(--warm);
       }
       #help ul {
         margin: 10px 0 0;
@@ -559,7 +613,7 @@
       #help .tip {
         margin: 10px 0 0;
         padding-top: 8px;
-        border-top: 1px solid #ffffff14;
+        border-top: 1px solid var(--line);
         opacity: 0.75;
       }
       #build-info {
@@ -598,8 +652,9 @@
           text-overflow: ellipsis;
           white-space: nowrap;
         }
-        #sound {
-          grid-column: 4;
+        /* 2행: 되돌리기 · 테마(2칸) · 사운드 — 빈 셀 없이 채운다 */
+        #theme {
+          grid-column: span 2;
         }
         #moves-panel,
         #help {
@@ -613,97 +668,96 @@
     </style>
   </head>
   <body>
-    <h1>윤준영의 Heat Chess</h1>
+    <h1>윤준영의 <span class="brand">Heat Chess</span></h1>
     <div id="stage">
       <div id="left">
-    <div id="bar">
-      <span id="status">백 차례</span>
-      <span id="clock"></span>
-      <button type="button" id="record" title="클릭하면 전적을 지웁니다"></button>
-    </div>
-    <div id="board-wrap">
-      <div></div>
-      <div class="taken" id="taken-top"></div>
-      <div id="ranks">
-        <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span
-        ><span>3</span><span>2</span><span>1</span>
-      </div>
-      <div id="board"></div>
-      <div></div>
-      <div id="files">
-        <span>a</span><span>b</span><span>c</span><span>d</span><span>e</span
-        ><span>f</span><span>g</span><span>h</span>
-      </div>
-      <div></div>
-      <div class="taken" id="taken-bottom"></div>
-    </div>
+        <div id="bar">
+          <span id="status">백 차례</span>
+          <span id="clock"></span>
+          <button type="button" id="record" title="클릭하면 전적을 지웁니다"></button>
+        </div>
+        <div id="board-wrap">
+          <div></div>
+          <div class="taken" id="taken-top"></div>
+          <div id="ranks">
+            <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span
+            ><span>2</span><span>1</span>
+          </div>
+          <div id="board"></div>
+          <div></div>
+          <div id="files">
+            <span>a</span><span>b</span><span>c</span><span>d</span><span>e</span><span>f</span
+            ><span>g</span><span>h</span>
+          </div>
+          <div></div>
+          <div class="taken" id="taken-bottom"></div>
+        </div>
       </div>
       <div id="right">
-    <div id="controls">
-      <button type="button" id="new-game" title="현재 모드로 새 게임">새 게임</button>
-      <select id="turn" title="턴 제한 시간">
-        <option value="30">30초</option>
-        <option value="60">1분</option>
-        <option value="180">3분</option>
-        <option value="300">5분</option>
-      </select>
-      <button type="button" id="game-mode" title="게임 모드 전환">🔥 히트</button>
-      <select id="mode" title="게임 모드와 AI 난이도">
-        <option value="ai1">vs AI(쉬움)</option>
-        <option value="ai2" selected>vs AI(보통)</option>
-        <option value="ai3">vs AI(어려움)</option>
-        <option value="two">2인 플레이</option>
-      </select>
-      <button type="button" id="undo" title="수 되돌리기" disabled>↩ 되돌리기</button>
-      <select id="theme" title="체스판 색상">
-        <option value="wood">다크 우드</option>
-        <option value="purple">보라</option>
-        <option value="lilac">연보라</option>
-        <option value="brown">브라운</option>
-        <option value="blue">블루</option>
-        <option value="green">그린</option>
-      </select>
-      <button type="button" id="sound" title="효과음 끄기">🔊</button>
-    </div>
-    <details id="moves-panel" open>
-      <summary>수 기록</summary>
-      <div id="moves" aria-live="polite"></div>
-    </details>
-    <details id="help" open>
-      <summary>규칙 — 체스와 같지만, 같은 기물을 계속 굴리면 뻗는다</summary>
-      <ul>
-        <li>
-          내 차례에 수를 두면, <b>움직인 기물</b>은 열이 오른다
-          <span class="badge">1</span> → <span class="badge">2</span> →
-          <span class="badge">3</span>
-        </li>
-        <li>
-          같은 순간, 이번에 <b>안 움직인 내 기물</b>은 열이 1씩 식는다. 상대가 둘
-          때는 <b>식지 않는다</b> — 내 차례에만 정산된다
-        </li>
-        <li>
-          열이 <b>4</b>에 닿으면 과열 <span class="badge overheat">🔥2</span> — 그
-          기물은 <b>내 차례 2번</b> 동안 못 움직인다. 풀리면 열은 0부터 다시
-        </li>
-        <li><b>킹은 달아오르지 않는다</b> — 체크를 못 피하면 게임이 막히니까</li>
-        <li>
-          움직일 기물이 하나도 없으면 그 턴은 그냥 넘어간다. 그때 체크를 받고
-          있으면 <b>히트메이트</b>로 패배
-        </li>
-        <li>한 턴은 <b id="turn-label">30초</b>. 넘기면 시간패</li>
-        <li>
-          🌬️ <b>에어콘 체스</b>: 시작할 때 내 기물 하나(킹 제외)를 몰래
-          에어콘으로 지정 — 상대에겐 안 보인다. 그 기물이 잡히면
-          <b>즉시 패배</b>. 에어콘 모드는 <b>히트 규칙을 쓰지 않는다</b> —
-          열 표시도 과열 잠금도 없다
-        </li>
-      </ul>
-      <p class="tip">
-        요령: 강한 기물 하나로 몰아붙이면 그 기물이 먼저 잠긴다. 여러 기물을
-        번갈아 쓰고, 상대의 핵심 기물이 뜨거워졌을 때 몰아치면 된다.
-      </p>
-    </details>
-    <footer id="build-info"></footer>
+        <div id="controls">
+          <button type="button" id="new-game" title="현재 모드로 새 게임">새 게임</button>
+          <select id="turn" title="턴 제한 시간">
+            <option value="30">30초</option>
+            <option value="60">1분</option>
+            <option value="180">3분</option>
+            <option value="300">5분</option>
+          </select>
+          <button type="button" id="game-mode" title="게임 모드 전환">🔥 히트</button>
+          <select id="mode" title="게임 모드와 AI 난이도">
+            <option value="ai1">vs AI(쉬움)</option>
+            <option value="ai2" selected>vs AI(보통)</option>
+            <option value="ai3">vs AI(어려움)</option>
+            <option value="two">2인 플레이</option>
+          </select>
+          <button type="button" id="undo" title="수 되돌리기" disabled>↩ 되돌리기</button>
+          <select id="theme" title="체스판 색상">
+            <option value="wood">다크 우드</option>
+            <option value="purple">보라</option>
+            <option value="lilac">연보라</option>
+            <option value="brown">브라운</option>
+            <option value="blue">블루</option>
+            <option value="green">그린</option>
+          </select>
+          <button type="button" id="sound" title="효과음 끄기">🔊</button>
+        </div>
+        <details id="moves-panel" open>
+          <summary>수 기록</summary>
+          <div id="moves" aria-live="polite"></div>
+        </details>
+        <details id="help" open>
+          <summary>규칙: 체스와 같지만, 같은 기물을 계속 굴리면 뻗는다</summary>
+          <ul>
+            <li>
+              내 차례에 수를 두면, <b>움직인 기물</b>은 열이 오른다 <span class="badge">1</span> →
+              <span class="badge">2</span> →
+              <span class="badge">3</span>
+            </li>
+            <li>
+              같은 순간, 이번에 <b>안 움직인 내 기물</b>은 열이 1씩 식는다. 상대가 둘 때는
+              <b>식지 않는다</b>. 내 차례에만 정산된다
+            </li>
+            <li>
+              열이 <b>4</b>에 닿으면 과열 <span class="badge overheat">🔥2</span>. 그 기물은
+              <b>내 차례 2번</b> 동안 못 움직인다. 풀리면 열은 0부터 다시
+            </li>
+            <li><b>킹은 달아오르지 않는다</b>. 체크를 못 피하면 게임이 막히니까</li>
+            <li>
+              움직일 기물이 하나도 없으면 그 턴은 그냥 넘어간다. 그때 체크를 받고 있으면
+              <b>히트메이트</b>로 패배
+            </li>
+            <li>한 턴은 <b id="turn-label">30초</b>. 넘기면 시간패</li>
+            <li>
+              🌬️ <b>에어콘 체스</b>: 시작할 때 내 기물 하나(킹 제외)를 몰래 에어콘으로 지정한다.
+              상대에겐 안 보인다. 그 기물이 잡히면 <b>즉시 패배</b>. 에어콘 모드는
+              <b>히트 규칙을 쓰지 않는다</b>. 열 표시도 과열 잠금도 없다
+            </li>
+          </ul>
+          <p class="tip">
+            요령: 강한 기물 하나로 몰아붙이면 그 기물이 먼저 잠긴다. 여러 기물을 번갈아 쓰고, 상대의
+            핵심 기물이 뜨거워졌을 때 몰아치면 된다.
+          </p>
+        </details>
+        <footer id="build-info"></footer>
       </div>
     </div>
     <div id="promo" hidden>

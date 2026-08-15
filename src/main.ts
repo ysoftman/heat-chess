@@ -197,7 +197,7 @@ function startClock() {
 			stopClock();
 			busy = true;
 			const winner = chess.turn() === "w" ? "흑" : "백";
-			statusEl.textContent = `시간 초과 — ${winner} 승`;
+			statusEl.textContent = `시간 초과, ${winner} 승`;
 			finish(chess.turn() === "w" ? "l" : "w");
 			thud(42, 1.2, "sawtooth", 0.32);
 		}
@@ -321,7 +321,9 @@ function render() {
 					if (cell?.lock || cell?.heat) {
 						const badge = document.createElement("span");
 						badge.className = `badge ${cell.lock ? "overheat" : ""}`;
-						badge.textContent = cell.lock ? `🔥${cell.lock}` : String(cell.heat);
+						badge.textContent = cell.lock
+							? `🔥${cell.lock}`
+							: String(cell.heat);
 						el.append(badge);
 					}
 				}
@@ -381,7 +383,7 @@ function doMove(
 		busy = true;
 		stopClock();
 		clearTimeout(pending);
-		statusEl.textContent = `❄ 에어콘 기물 격추 — ${move.color === "w" ? "백" : "흑"} 승`;
+		statusEl.textContent = `❄ 에어콘 기물 격추, ${move.color === "w" ? "백" : "흑"} 승`;
 		finish(move.color === "w" ? "w" : "l");
 		thud(42, 1.2, "sawtooth", 0.32);
 		return;

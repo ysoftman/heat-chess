@@ -140,3 +140,17 @@ test("AI 는 과열되지 않은 합법수를 고른다", () => {
 		true,
 	);
 });
+
+// 백 비숍 b6 이 에어콘 폰(a7)을 위협, 흑 나이트 e2 는 백 퀸(f4)을 먹을 수 있다
+const AIRCON_TRAP = "7k/p7/1B6/8/5Q2/8/4n3/7K b - - 0 1";
+
+test("에어콘 인식이 없으면 AI 는 퀸을 먹는 수를 고른다", () => {
+	const m = bestMove(new Chess(AIRCON_TRAP), {}, 2)!;
+	expect(m.from).toBe("e2"); // Nxf4 — 기물 교환으론 이득
+});
+
+test("에어콘 인식이 있으면 AI 는 퀸을 포기하고도 에어콘 기물을 지킨다", () => {
+	const m = bestMove(new Chess(AIRCON_TRAP), {}, 2, false, "a7")!;
+	expect(m.from).toBe("a7"); // axb6 — 비숍을 잡아 폰을 살린다
+	expect(m.to).toBe("b6");
+});

@@ -53,6 +53,7 @@ const PAWNS: Record<string, number> = { q: 9, r: 5, b: 3, n: 3, p: 1 };
 const RECORD_KEY = "heat-chess-record";
 const THEME_KEY = "heat-chess-board";
 const TURN_KEY = "heat-chess-turn";
+const SOUND_KEY = "heat-chess-sound";
 
 // 프라이빗 모드 등에서 localStorage 접근 자체가 막힐 수 있다
 function readStore(key: string) {
@@ -83,6 +84,11 @@ const depthEl = document.getElementById("depth") as HTMLSelectElement;
 const themeEl = document.getElementById("theme") as HTMLSelectElement;
 const turnEl = document.getElementById("turn") as HTMLSelectElement;
 const turnLabelEl = document.getElementById("turn-label")!;
+const undoEl = document.getElementById("undo") as HTMLButtonElement;
+const soundEl = document.getElementById("sound") as HTMLButtonElement;
+const movesEl = document.getElementById("moves")!;
+const promoEl = document.getElementById("promo")!;
+const promoBoxEl = document.getElementById("promo-box")!;
 
 let chess = new Chess();
 let heat: Heat = {};
@@ -99,6 +105,18 @@ let left = 0;
 let lostPieces: Record<"w" | "b", string[]> = { w: [], b: [] };
 let record = loadRecord();
 let recorded = false;
+let soundOn = readStore(SOUND_KEY) !== "off";
+let sanMoves: string[] = [];
+// undo 용 스냅샷 — 수를 두기 직전 상태를 담는다 (heat 는 불변이라 참조로 충분)
+type Snap = {
+	fen: string;
+	heat: Heat;
+	lost: Record<"w" | "b", string[]>;
+	aircon: Record<"w" | "b", string | null>;
+	san: string[];
+};
+let history: Snap[] = [];
+let pendingPromo: { from: string; to: string } | null = null;
 
 // localStorage 는 사용자가 직접 고칠 수 있으니 값을 믿지 않는다
 function loadRecord() {
@@ -125,6 +143,7 @@ function finish(result: "w" | "l" | "d") {
 
 // 무게감은 낮은 기본음 + 피치 하강 + 로우패스에서 나온다
 function thud(freq: number, dur: number, type: OscillatorType, gain = 0.3) {
+	if (!soundOn) return;
 	audio ??= new AudioContext();
 	const t = audio.currentTime;
 	const osc = audio.createOscillator();
@@ -243,7 +262,21 @@ function fillTray(
 	}
 }
 
+function drawMoves() {
+	const parts: string[] = [];
+	for (let i = 0; i < sanMoves.length; i++)
+		parts.push(`${i % 2 === 0 ? `${i / 2 + 1}. ` : ""}${sanMoves[i]}`);
+	movesEl.textContent = parts.join(" ");
+	movesEl.scrollTop = movesEl.scrollHeight;
+}
+
+function updateUndo() {
+	undoEl.disabled = busy || picking !== null || history.length === 0;
+}
+
 function render() {
+	drawMoves();
+	updateUndo();
 	renderTaken();
 	const board = chess.board();
 	const targets = sel
@@ -274,16 +307,22 @@ function render() {
 								? `, heat ${cell.heat}`
 								: ""
 					}`;
-					if (cell?.lock) pc.classList.add("locked");
-					else if (cell?.heat) {
+					if (cell?.lock) {
+						pc.classList.add("overheat");
+						el.classList.add("overheat");
+						// 솟아오르는 열기 줄기 — 에어콘의 바람(.wind)과 구분된다
+						const steam = document.createElement("span");
+						steam.className = "steam";
+						el.append(steam);
+					} else if (cell?.heat) {
 						pc.classList.add("hot");
 						pc.style.setProperty("--h", String(cell.heat));
 					}
 					el.append(pc);
 					if (cell?.lock || cell?.heat) {
 						const badge = document.createElement("span");
-						badge.className = `badge ${cell.lock ? "cold" : ""}`;
-						badge.textContent = cell.lock ? `❄${cell.lock}` : String(cell.heat);
+						badge.className = `badge ${cell.lock ? "overheat" : ""}`;
+						badge.textContent = cell.lock ? `🔥${cell.lock}` : String(cell.heat);
 						el.append(badge);
 					}
 				}
@@ -309,8 +348,24 @@ function render() {
 	);
 }
 
-function doMove(from: string, to: string) {
-	const move = chess.move({ from, to, promotion: "q" });
+// 스냅샷은 사람의 수만 남긴다 — vs AI 에서 undo 한 번이
+// AI 응답과 사람의 수를 함께 되돌리기 위함 (AI 수의 스냅샷을 되돌리면 흑 차례가 된다)
+function doMove(
+	from: string,
+	to: string,
+	promotion: "q" | "r" | "b" | "n" = "q",
+	byHuman = true,
+) {
+	if (byHuman)
+		history.push({
+			fen: chess.fen(),
+			heat,
+			lost: { w: [...lostPieces.w], b: [...lostPieces.b] },
+			aircon: { ...airconSq },
+			san: [...sanMoves],
+		});
+	const move = chess.move({ from, to, promotion });
+	sanMoves.push(move.san);
 	if (move.captured)
 		lostPieces[move.color === "w" ? "b" : "w"].push(move.captured);
 	// 과열 판정은 잠금 유무가 아니라 이동 전 열로 본다 (에어콘 모드는 히트 규칙 없음)
@@ -349,6 +404,7 @@ function step() {
 	}
 	if (st.mustPass) {
 		heat = pass(chess, heat);
+		sanMoves.push("(패스)");
 		render();
 		// 넘어간 턴이 눈에 보이게 잠깐 멈춘다 — 그동안 입력은 busy 로 막는다
 		busy = true;
@@ -363,9 +419,21 @@ function step() {
 		stopClock();
 		statusEl.textContent = "AI 생각 중…";
 		later(() => {
-			const m = bestMove(chess, heat, Number(depthEl.value), airconOn);
+			const m = bestMove(
+				chess,
+				heat,
+				Number(depthEl.value),
+				airconOn,
+				airconOn ? airconSq.b : null,
+			);
 			busy = false;
-			if (m) doMove(m.from, m.to);
+			if (m)
+				doMove(
+					m.from,
+					m.to,
+					(m.promotion ?? "q") as "q" | "r" | "b" | "n",
+					false,
+				);
 		}, 30);
 	} else startClock();
 }
@@ -385,6 +453,36 @@ function randomAircon(color: "w" | "b") {
 		});
 	});
 	return own[Math.floor(Math.random() * own.length)]!;
+}
+
+const PROMO_PIECES = ["q", "r", "b", "n"] as const;
+
+function showPromo(color: "w" | "b") {
+	promoBoxEl.replaceChildren(
+		...PROMO_PIECES.map((p) => {
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.title = `${NAME[p]}로 승격`;
+			const img = document.createElement("img");
+			img.src = PIECE[color + p]!;
+			img.alt = btn.title;
+			btn.append(img);
+			btn.addEventListener("click", () => {
+				if (!pendingPromo) return;
+				const { from, to } = pendingPromo;
+				pendingPromo = null;
+				promoEl.hidden = true;
+				doMove(from, to, p);
+			});
+			return btn;
+		}),
+	);
+	promoEl.hidden = false;
+}
+
+function hidePromo() {
+	pendingPromo = null;
+	promoEl.hidden = true;
 }
 
 boardEl.addEventListener("click", (e) => {
@@ -407,8 +505,13 @@ boardEl.addEventListener("click", (e) => {
 	// AI(흑) 차례에는 사람 클릭으로 수를 두지 못한다
 	if (modeEl.value === "ai" && chess.turn() === "b") return;
 	const moves = legalMoves(chess, heat);
-	if (sel && moves.some((m) => m.from === sel && m.to === sq)) doMove(sel, sq);
-	else {
+	if (sel && moves.some((m) => m.from === sel && m.to === sq)) {
+		const opts = moves.filter((m) => m.from === sel && m.to === sq);
+		if (opts.length > 1) {
+			pendingPromo = { from: sel, to: sq };
+			showPromo(chess.get(sel as Square)!.color);
+		} else doMove(sel, sq);
+	} else {
 		sel = moves.some((m) => m.from === sq) ? sq : null;
 		render();
 	}
@@ -416,6 +519,7 @@ boardEl.addEventListener("click", (e) => {
 
 function newGame() {
 	clearTimeout(pending);
+	hidePromo();
 	chess = new Chess();
 	heat = {};
 	sel = null;
@@ -424,11 +528,17 @@ function newGame() {
 	lostPieces = { w: [], b: [] };
 	airconSq = { w: null, b: null };
 	picking = airconOn ? "w" : null;
+	sanMoves = [];
+	history = [];
 	stopClock();
 	render();
 	if (picking) statusEl.textContent = pickText();
 	else step();
 }
+
+// 진행 중인 게임을 버리는 동작(새 게임/모드 전환)에 확인을 받는다
+const confirmDiscard = () =>
+	sanMoves.length === 0 || confirm("진행 중인 게임을 버리고 새로 시작할까요?");
 
 modeEl.addEventListener("change", () => !busy && !picking && step());
 
@@ -439,12 +549,43 @@ function drawGameMode() {
 	gameModeEl.classList.toggle("on", airconOn);
 }
 gameModeEl.addEventListener("click", () => {
+	if (!confirmDiscard()) return;
 	airconOn = !airconOn;
 	drawGameMode();
 	newGame();
 });
 
-document.getElementById("new-game")!.addEventListener("click", newGame);
+document.getElementById("new-game")!.addEventListener("click", () => {
+	if (!confirmDiscard()) return;
+	newGame();
+});
+
+undoEl.addEventListener("click", () => {
+	if (busy || picking) return;
+	const snap = history.pop();
+	if (!snap) return;
+	clearTimeout(pending);
+	stopClock();
+	hidePromo();
+	chess = new Chess(snap.fen);
+	heat = snap.heat;
+	lostPieces = { w: [...snap.lost.w], b: [...snap.lost.b] };
+	airconSq = { ...snap.aircon };
+	sanMoves = [...snap.san];
+	sel = null;
+	busy = false;
+	render();
+	step();
+});
+
+const soundLabel = () => (soundOn ? "🔊" : "🔇");
+soundEl.textContent = soundLabel();
+soundEl.addEventListener("click", () => {
+	soundOn = !soundOn;
+	writeStore(SOUND_KEY, soundOn ? null : "off");
+	soundEl.textContent = soundLabel();
+	soundEl.title = soundOn ? "효과음 끄기" : "효과음 켜기";
+});
 
 recordEl.addEventListener("click", () => {
 	if (!confirm("전적을 지울까요?")) return;

@@ -1,7 +1,14 @@
-import type { Chess, Color, Move } from "chess.js";
+import type { Chess, Color, Move, Square } from "chess.js";
 
 export const OVERHEAT = 4;
 export const LOCK_TURNS = 2;
+
+// 에어콘 기물 가치 — 잡히면 즉시 패배라 퀸(900)보다 훨씬 높게 둔다.
+// 체크메이트 점수(99999)보다는 낮아야 메이트를 우선할 수 있다.
+const AIRCON_VALUE = 8000;
+// 위협(공격받는 중) 감점 — 값보다 낮게 두어야, 위협만 유지하는 수보다
+// 실제로 지키거나 잡는 수를 선호한다 (감점이 값보다 크면 역전된다)
+const AIRCON_PRISE = 4000;
 
 export type Cell = { heat: number; lock: number; color: Color };
 export type Heat = Record<string, Cell>;
@@ -106,13 +113,23 @@ const VALUE: Record<string, number> = {
 	k: 0,
 };
 
-function evaluate(chess: Chess, h: Heat): number {
+function evaluate(chess: Chess, h: Heat, aircon: string | null): number {
 	const me = chess.turn();
 	let s = 0;
 	for (const row of chess.board())
 		for (const p of row) if (p) s += (p.color === me ? 1 : -1) * VALUE[p.type]!;
 	for (const c of Object.values(h))
 		s += (c.color === me ? -1 : 1) * (c.lock > 0 ? 60 : c.heat * 10);
+	// vs AI 에서 AI(흑)는 자기 에어콘 기물을 알고 있으니 지키도록 평가에 넣는다.
+	// 상대(백)의 에어콘은 비밀이므로 모른다 — 잡는 쪽은 보너스가 없다
+	if (aircon) {
+		const p = chess.get(aircon as Square);
+		if (p?.color === "b") {
+			const dir = me === "b" ? 1 : -1;
+			s += dir * AIRCON_VALUE;
+			if (chess.isAttacked(aircon as Square, "w")) s -= dir * AIRCON_PRISE;
+		}
+	}
 	return s;
 }
 
@@ -123,14 +140,15 @@ function negamax(
 	alpha: number,
 	beta: number,
 	noHeat: boolean,
+	aircon: string | null,
 ): number {
 	const moves = legalMoves(chess, h);
 	if (moves.length === 0) {
 		if (chess.isCheck()) return -99999 - depth;
 		if (chess.moves().length === 0) return 0;
-		return evaluate(chess, h);
+		return evaluate(chess, h, aircon);
 	}
-	if (depth === 0) return evaluate(chess, h);
+	if (depth === 0) return evaluate(chess, h, aircon);
 	moves.sort(
 		(a, b) =>
 			(b.captured ? VALUE[b.captured]! : 0) -
@@ -146,6 +164,7 @@ function negamax(
 			-beta,
 			-alpha,
 			noHeat,
+			airconAfter(m, aircon),
 		);
 		chess.undo();
 		if (score > best) best = score;
@@ -160,6 +179,7 @@ export function bestMove(
 	h: Heat,
 	depth = 3,
 	noHeat = false,
+	aircon: string | null = null,
 ): Move | null {
 	const moves = legalMoves(chess, h);
 	if (moves.length === 0) return null;
@@ -174,6 +194,7 @@ export function bestMove(
 			-Infinity,
 			-bestScore,
 			noHeat,
+			airconAfter(m, aircon),
 		);
 		chess.undo();
 		if (score > bestScore) {

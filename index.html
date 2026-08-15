@@ -146,8 +146,87 @@
       .hot {
         filter: drop-shadow(0 0 calc(var(--h) * 4px) hsl(calc(45 - var(--h) * 15) 100% 55%));
       }
-      .locked {
-        opacity: 0.4;
+      /* 과열 기물 — 백열 코어 + 잿불 맥동 + 솟는 열기.
+         heat 1-3(.hot)은 약한 주황 글로우, 과열은 흰 코어의 강한 맥동으로 구분한다 */
+      .sq.overheat {
+        isolation: isolate;
+      }
+      .pc.overheat {
+        animation: ember-pulse 1.8s ease-in-out infinite;
+      }
+      @keyframes ember-pulse {
+        0%,
+        100% {
+          filter: drop-shadow(0 0 4px #fff9) drop-shadow(0 0 10px #ffb35c)
+            drop-shadow(0 0 20px #ff5a00bb);
+        }
+        50% {
+          filter: drop-shadow(0 0 9px #fff) drop-shadow(0 0 18px #ffc26e)
+            drop-shadow(0 0 36px #ff3d00);
+        }
+      }
+      /* 기물 뒤에서 잿불처럼 깔리는 광채 */
+      .sq.overheat::before {
+        content: "";
+        position: absolute;
+        inset: 8%;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          #fff7 0%,
+          #ffb35c44 35%,
+          #ff3d0022 62%,
+          transparent 78%
+        );
+        animation: ember-halo 1.8s ease-in-out infinite;
+      }
+      @keyframes ember-halo {
+        0%,
+        100% {
+          opacity: 0.45;
+          transform: scale(0.96);
+        }
+        50% {
+          opacity: 0.9;
+          transform: scale(1.06);
+        }
+      }
+      /* 위로 솟는 열기 줄기 — 에어콘 바람(.wind)과 달리 상승한다 */
+      .steam {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .steam::before,
+      .steam::after {
+        content: "~";
+        position: absolute;
+        left: 16%;
+        font-size: min(3.5vw, 18px);
+        line-height: 1;
+        color: #ffd9a8;
+        text-shadow: 0 0 8px #ff7a1a, 0 0 16px #ff5a00;
+        opacity: 0;
+        animation: rise 1.9s linear infinite;
+      }
+      .steam::after {
+        left: 64%;
+        animation-delay: 0.95s;
+        animation-duration: 2.4s;
+      }
+      @keyframes rise {
+        0% {
+          transform: translateY(16%) scale(0.7);
+          opacity: 0;
+        }
+        20% {
+          opacity: 0.85;
+        }
+        100% {
+          transform: translateY(-130%) scale(1.2);
+          opacity: 0;
+        }
       }
       .badge {
         font-size: min(2.6vw, 12px);
@@ -187,8 +266,11 @@
         font-size: 13px;
         color: #ffb066;
       }
-      .badge.cold {
-        background: #3b82f6;
+      /* 과열 배지 — 흰 빛을 머금은 열 그라데이션 (기존 파랑 ❄ 배지의 대체) */
+      .badge.overheat {
+        background: linear-gradient(135deg, #ff3d00, #ff7a1a 55%, #ffd08a);
+        text-shadow: 0 0 6px #ffd08a;
+        box-shadow: 0 0 8px #ff5a00aa;
       }
       .target::after {
         content: "";
@@ -336,12 +418,47 @@
           opacity: 0.8;
           transform: translateX(150%);
         }
+        /* 과열 — 애니메이션을 끄고 정적인 백열 상태로 고정 */
+        .pc.overheat,
+        .sq.overheat::before,
+        .steam::before,
+        .steam::after {
+          animation: none;
+        }
+        .pc.overheat {
+          filter: drop-shadow(0 0 6px #fff) drop-shadow(0 0 14px #ffb35c)
+            drop-shadow(0 0 26px #ff5a00);
+        }
+        .sq.overheat::before {
+          opacity: 0.7;
+        }
+        .steam::before,
+        .steam::after {
+          opacity: 0.6;
+          transform: translateY(-70%);
+        }
       }
       #controls {
         display: flex;
         gap: 8px;
         flex-wrap: wrap;
         justify-content: center;
+      }
+      /* 레이아웃 스테이지: 좁은 화면에서는 세로로 쌓고 중앙 정렬 */
+      #stage {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        width: 100%;
+      }
+      #left,
+      #right {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        width: 100%;
       }
       button,
       select {
@@ -355,6 +472,66 @@
       }
       button:hover {
         border-color: var(--accent);
+      }
+      #undo:disabled {
+        opacity: 0.35;
+        cursor: default;
+        border-color: #5a4535;
+      }
+      #moves-panel {
+        width: min(92vw, 560px);
+        background: #ffffff08;
+        border: 1px solid #ffffff14;
+        border-radius: 10px;
+        padding: 6px 16px;
+      }
+      #moves-panel summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: #ffb066;
+      }
+      #moves {
+        margin-top: 6px;
+        max-height: 110px;
+        overflow-y: auto;
+        font-size: 13px;
+        line-height: 1.9;
+        color: #d8cfc5;
+      }
+      #promo {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: #000a;
+        z-index: 10;
+      }
+      #promo[hidden] {
+        display: none;
+      }
+      #promo-box {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        border: 1px solid #5a4535;
+        background: #251b15;
+        box-shadow: 0 12px 40px #000c;
+      }
+      #promo-box span {
+        font-weight: 600;
+        color: #ffb066;
+        margin-right: 4px;
+      }
+      #promo-box button {
+        padding: 4px;
+        border-radius: 8px;
+      }
+      #promo-box img {
+        width: 44px;
+        height: 44px;
+        display: block;
       }
       #help {
         max-width: min(92vw, 560px);
@@ -390,10 +567,52 @@
         font-size: 12px;
         opacity: 0.45;
       }
+      /* 와이드(PC) 화면: 왼쪽에 보드, 오른쪽에 컨트롤/수 기록/규칙 2단 레이아웃.
+         왼쪽 칸은 보드(min(88vw,560px)) + 랭크 열 20px + 갭 2px = 582px,
+         오른쪽 칸은 남은 공간을 채우되 최대 560px */
+      @media (min-width: 1000px) {
+        #stage {
+          display: grid;
+          grid-template-columns: minmax(0, 582px) minmax(0, 560px);
+          justify-content: center;
+          align-items: start;
+          gap: 24px;
+        }
+        #left,
+        #right {
+          align-items: stretch;
+          min-width: 0;
+        }
+        #bar {
+          justify-content: center;
+        }
+        #controls {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+        #controls button,
+        #controls select {
+          width: 100%;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        #moves-panel,
+        #help {
+          width: 100%;
+          max-width: none;
+        }
+        #build-info {
+          text-align: center;
+        }
+      }
     </style>
   </head>
   <body>
     <h1>윤준영의 Heat Chess</h1>
+    <div id="stage">
+      <div id="left">
     <div id="bar">
       <span id="status">백 차례</span>
       <span id="clock"></span>
@@ -415,9 +634,13 @@
       <div></div>
       <div class="taken" id="taken-bottom"></div>
     </div>
+      </div>
+      <div id="right">
     <div id="controls">
       <button type="button" id="new-game" title="현재 모드로 새 게임">새 게임</button>
       <button type="button" id="game-mode" title="게임 모드 전환">🔥 히트</button>
+      <button type="button" id="undo" title="수 되돌리기" disabled>↩ 되돌리기</button>
+      <button type="button" id="sound" title="효과음 끄기">🔊</button>
       <select id="mode">
         <option value="ai">vs AI</option>
         <option value="two">2인 플레이</option>
@@ -442,6 +665,10 @@
         <option value="green">그린</option>
       </select>
     </div>
+    <details id="moves-panel" open>
+      <summary>수 기록</summary>
+      <div id="moves" aria-live="polite"></div>
+    </details>
     <details id="help" open>
       <summary>규칙 — 체스와 같지만, 같은 기물을 계속 굴리면 뻗는다</summary>
       <ul>
@@ -455,7 +682,7 @@
           때는 <b>식지 않는다</b> — 내 차례에만 정산된다
         </li>
         <li>
-          열이 <b>4</b>에 닿으면 과열 <span class="badge cold">❄2</span> — 그
+          열이 <b>4</b>에 닿으면 과열 <span class="badge overheat">🔥2</span> — 그
           기물은 <b>내 차례 2번</b> 동안 못 움직인다. 풀리면 열은 0부터 다시
         </li>
         <li><b>킹은 달아오르지 않는다</b> — 체크를 못 피하면 게임이 막히니까</li>
@@ -477,6 +704,11 @@
       </p>
     </details>
     <footer id="build-info"></footer>
+      </div>
+    </div>
+    <div id="promo" hidden>
+      <div id="promo-box"></div>
+    </div>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

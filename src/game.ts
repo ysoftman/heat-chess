@@ -47,7 +47,8 @@ export function airconAfter(m: Move, sq: string | null): string | null {
 	return sq;
 }
 
-export function applyHeat(prev: Heat, m: Move): Heat {
+export function applyHeat(prev: Heat, m: Move, noHeat = false): Heat {
+	if (noHeat) return prev;
 	const h = clone(prev);
 	delete h[capturedSquare(m)];
 	cool(h, m.color, m.from);
@@ -119,6 +120,7 @@ function negamax(
 	depth: number,
 	alpha: number,
 	beta: number,
+	noHeat: boolean,
 ): number {
 	const moves = legalMoves(chess, h);
 	if (moves.length === 0) {
@@ -135,7 +137,14 @@ function negamax(
 	let best = -Infinity;
 	for (const m of moves) {
 		chess.move({ from: m.from, to: m.to, promotion: m.promotion ?? "q" });
-		const score = -negamax(chess, applyHeat(h, m), depth - 1, -beta, -alpha);
+		const score = -negamax(
+			chess,
+			applyHeat(h, m, noHeat),
+			depth - 1,
+			-beta,
+			-alpha,
+			noHeat,
+		);
 		chess.undo();
 		if (score > best) best = score;
 		if (best > alpha) alpha = best;
@@ -144,7 +153,7 @@ function negamax(
 	return best;
 }
 
-export function bestMove(chess: Chess, h: Heat, depth = 3): Move | null {
+export function bestMove(chess: Chess, h: Heat, depth = 3, noHeat = false): Move | null {
 	const moves = legalMoves(chess, h);
 	if (moves.length === 0) return null;
 	let best = moves[0]!;
@@ -153,10 +162,11 @@ export function bestMove(chess: Chess, h: Heat, depth = 3): Move | null {
 		chess.move({ from: m.from, to: m.to, promotion: m.promotion ?? "q" });
 		const score = -negamax(
 			chess,
-			applyHeat(h, m),
+			applyHeat(h, m, noHeat),
 			depth - 1,
 			-Infinity,
 			-bestScore,
+			noHeat,
 		);
 		chess.undo();
 		if (score > bestScore) {

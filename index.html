@@ -203,13 +203,56 @@
         background: none;
         border: 4px solid #0006;
       }
-      #aircon.on {
+      #game-mode.on {
         border-color: #6fd3ff;
         color: #bfeaff;
         background: #12242e;
       }
+      /* 에어콘 기물 표시 — 후광 + 링 + 바람 + 모서리 아이콘의 조합 */
+      .sq.aircon {
+        isolation: isolate;
+      }
       .sq.aircon .pc {
-        filter: drop-shadow(0 0 8px #6fd3ff);
+        filter: drop-shadow(0 0 6px #6fd3ff) drop-shadow(0 0 16px #6fd3ff99)
+          drop-shadow(0 0 30px #4fb8ff66);
+      }
+      /* 기물 뒤에서 숨쉬듯 커지는 파랑 후광 */
+      .sq.aircon::before {
+        content: "";
+        position: absolute;
+        inset: 6%;
+        border-radius: 50%;
+        background: radial-gradient(circle, #6fd3ff55 0%, #6fd3ff22 45%, transparent 72%);
+        animation: aircon-halo 2.6s ease-in-out infinite;
+      }
+      /* 사각형을 감싸는 숨쉬는 링 */
+      .sq.aircon::after {
+        content: "";
+        position: absolute;
+        inset: 2px;
+        border-radius: 4px;
+        border: 2px solid #6fd3ff99;
+        animation: aircon-ring 2.2s ease-in-out infinite;
+      }
+      @keyframes aircon-halo {
+        0%,
+        100% {
+          opacity: 0.55;
+          transform: scale(0.98);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1.04);
+        }
+      }
+      @keyframes aircon-ring {
+        0%,
+        100% {
+          opacity: 0.45;
+        }
+        50% {
+          opacity: 1;
+        }
       }
       .wind {
         position: absolute;
@@ -222,26 +265,76 @@
         content: "≋";
         position: absolute;
         left: -30%;
-        font-size: min(4vw, 22px);
-        color: #bfeaff;
-        text-shadow: 0 0 6px #6fd3ff;
+        font-size: min(4.5vw, 24px);
+        color: #dff4ff;
+        text-shadow: 0 0 6px #6fd3ff, 0 0 14px #4fb8ff;
         opacity: 0;
-        animation: gust 1.8s linear infinite;
+        animation: gust 1.5s linear infinite;
       }
       .wind::before {
-        top: 6%;
+        top: 8%;
       }
       .wind::after {
-        top: 52%;
-        animation-delay: 0.9s;
+        top: 50%;
+        animation-delay: 0.75s;
+      }
+      /* 더 큰 바람이 드물게 지나간다 */
+      .wind-gust::before {
+        top: 26%;
+        font-size: min(6vw, 32px);
+        animation-duration: 2.4s;
+      }
+      .wind-gust::after {
+        top: 74%;
+        animation-delay: 1.15s;
       }
       @keyframes gust {
-        15% {
-          opacity: 0.9;
+        10% {
+          opacity: 1;
         }
         100% {
-          transform: translateX(400%);
+          transform: translateX(420%);
           opacity: 0;
+        }
+      }
+      /* 우하단 고정 표시 — 열 배지(우상단)와 겹치지 않는다 */
+      .aircon-ico {
+        position: absolute;
+        right: 3px;
+        bottom: 2px;
+        font-size: min(3vw, 14px);
+        line-height: 1;
+        pointer-events: none;
+        filter: drop-shadow(0 0 4px #6fd3ff);
+        animation: aircon-bob 2.4s ease-in-out infinite;
+      }
+      @keyframes aircon-bob {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-2px);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .sq.aircon::before,
+        .sq.aircon::after,
+        .wind::before,
+        .wind::after,
+        .aircon-ico {
+          animation: none;
+        }
+        .sq.aircon::before {
+          opacity: 0.8;
+        }
+        .sq.aircon::after {
+          opacity: 0.8;
+        }
+        .wind::before,
+        .wind::after {
+          opacity: 0.8;
+          transform: translateX(150%);
         }
       }
       #controls {
@@ -318,7 +411,7 @@
       <div class="taken" id="taken-bottom"></div>
     </div>
     <div id="controls">
-      <button type="button" id="new">새 게임</button>
+      <button type="button" id="game-mode" title="게임 모드 전환">🔥 히트</button>
       <select id="mode">
         <option value="ai">vs AI</option>
         <option value="two">2인 플레이</option>
@@ -334,9 +427,6 @@
         <option value="180">3분</option>
         <option value="300">5분</option>
       </select>
-      <button type="button" id="aircon" title="에어콘 체스 모드">
-        🌬️ 에어콘
-      </button>
       <select id="theme" title="체스판 색상">
         <option value="wood">다크 우드</option>
         <option value="purple">보라</option>
@@ -371,7 +461,8 @@
         <li>
           🌬️ <b>에어콘 체스</b>: 시작할 때 내 기물 하나(킹 제외)를 몰래
           에어콘으로 지정 — 상대에겐 안 보인다. 그 기물이 잡히면
-          <b>즉시 패배</b>
+          <b>즉시 패배</b>. 에어콘 모드는 <b>히트 규칙을 쓰지 않는다</b> —
+          열 표시도 과열 잠금도 없다
         </li>
       </ul>
       <p class="tip">

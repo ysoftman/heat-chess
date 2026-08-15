@@ -82,6 +82,17 @@ test("앙파상의 실제 잡힌 칸을 알아낸다", () => {
 	expect(capturedSquare(chess.move("exd6"))).toBe("d5");
 });
 
+test("에어콘 모드(noHeat)에서는 열이 쌓이지 않아 잠기지 않는다", () => {
+	const chess = new Chess();
+	let h: Heat = {};
+	const mv = (san: string) => (h = applyHeat(h, chess.move(san), true));
+
+	for (const san of ["Nf3", "Nf6", "Ng1", "Ng8", "Nf3", "Nf6", "Ng1"]) mv(san);
+	expect(h).toEqual({}); // 일반 모드였다면 4회째에 잠겼을 자리에도 열이 없다
+	mv("e5"); // 흑 차례라 한 수 더 둔 뒤 백 기물 이동 가능 여부를 본다
+	expect(legalMoves(chess, h).some((m) => m.from === "g1")).toBe(true);
+});
+
 test("AI 는 과열되지 않은 합법수를 고른다", () => {
 	const chess = new Chess();
 	const h: Heat = { g1: { heat: 0, lock: 2, color: "w" } };

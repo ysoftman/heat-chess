@@ -6,6 +6,7 @@ import {
 	capturedSquare,
 	type Heat,
 	legalMoves,
+	OVERHEAT,
 	pass,
 	status,
 } from "./game";
@@ -290,9 +291,18 @@ function render() {
 				// 내 에어콘 기물 표시 — vs AI 에서만. 2인 플레이는 화면을 같이 보므로 숨긴다
 				if (sq === airconSq.w && modeEl.value === "ai") {
 					el.classList.add("aircon");
+					// 바람 줄기 두 레이어 (두 번째는 더 큰 바람이 드물게)
 					const wind = document.createElement("span");
 					wind.className = "wind";
 					el.append(wind);
+					const gust = document.createElement("span");
+					gust.className = "wind wind-gust";
+					el.append(gust);
+					// 우하단 고정 아이콘 — 열 배지(우상단)와 겹치지 않는다
+					const ico = document.createElement("span");
+					ico.className = "aircon-ico";
+					ico.textContent = "🌬️";
+					el.append(ico);
 				}
 				return el;
 			}),
@@ -302,14 +312,16 @@ function render() {
 
 function doMove(from: string, to: string) {
 	const move = chess.move({ from, to, promotion: "q" });
-	heat = applyHeat(heat, move);
+	// 과열 판정은 잠금 유무가 아니라 이동 전 열로 본다 (에어콘 모드는 히트 규칙 없음)
+	const overheated = (heat[from]?.heat ?? 0) + 1 >= OVERHEAT;
+	heat = applyHeat(heat, move, airconOn);
 	sel = null;
 	airconSq[move.color] = airconAfter(move, airconSq[move.color]);
 	const foe = move.color === "w" ? "b" : "w";
 	const hit = !!move.captured && airconSq[foe] === capturedSquare(move);
 	if (hit) airconSq[foe] = null;
 	render();
-	playSound(move, (heat[to]?.lock ?? 0) > 0);
+	playSound(move, overheated);
 	if (hit) {
 		busy = true;
 		stopClock();
@@ -342,7 +354,7 @@ function step() {
 		stopClock();
 		statusEl.textContent = "AI 생각 중…";
 		setTimeout(() => {
-			const m = bestMove(chess, heat, Number(depthEl.value));
+			const m = bestMove(chess, heat, Number(depthEl.value), airconOn);
 			busy = false;
 			if (m) doMove(m.from, m.to);
 		}, 30);
@@ -405,13 +417,17 @@ function newGame() {
 	else step();
 }
 
-document.getElementById("new")!.addEventListener("click", newGame);
 modeEl.addEventListener("change", () => !busy && !picking && step());
 
-const airconEl = document.getElementById("aircon")!;
-airconEl.addEventListener("click", () => {
+// 게임 모드 토글 — 라벨은 현재 모드를 보여주고, 클릭하면 모드를 바꾸며 새 게임을 시작한다
+const gameModeEl = document.getElementById("game-mode")!;
+function drawGameMode() {
+	gameModeEl.textContent = airconOn ? "🌬️ 에어콘" : "🔥 히트";
+	gameModeEl.classList.toggle("on", airconOn);
+}
+gameModeEl.addEventListener("click", () => {
 	airconOn = !airconOn;
-	airconEl.classList.toggle("on", airconOn);
+	drawGameMode();
 	newGame();
 });
 
@@ -440,5 +456,6 @@ themeEl.addEventListener("change", () => {
 });
 
 drawRecord();
+drawGameMode();
 render();
 step();

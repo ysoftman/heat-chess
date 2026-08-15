@@ -458,4 +458,15 @@ themeEl.addEventListener("change", () => {
 drawRecord();
 drawGameMode();
 render();
+
+const buildInfoEl = document.getElementById("build-info");
+if (buildInfoEl) {
+	const version = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "develop";
+	const commit = typeof __APP_COMMIT__ === "string" ? __APP_COMMIT__ : "dev";
+	const time =
+		typeof __APP_BUILD_TIME__ === "string"
+			? __APP_BUILD_TIME__
+			: new Date().toISOString().slice(0, 10);
+	buildInfoEl.textContent = `${version} · ${commit} · ${time}`;
+}
 step();

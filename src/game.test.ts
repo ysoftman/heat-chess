@@ -7,6 +7,8 @@ import {
 	capturedSquare,
 	type Heat,
 	legalMoves,
+	pass,
+	status,
 } from "./game";
 
 function play(sans: string[]) {
@@ -91,6 +93,42 @@ test("에어콘 모드(noHeat)에서는 열이 쌓이지 않아 잠기지 않는
 	expect(h).toEqual({}); // 일반 모드였다면 4회째에 잠겼을 자리에도 열이 없다
 	mv("e5"); // 흑 차례라 한 수 더 둔 뒤 백 기물 이동 가능 여부를 본다
 	expect(legalMoves(chess, h).some((m) => m.from === "g1")).toBe(true);
+});
+
+test("체크 중 전부 과열이면 히트메이트로 진다", () => {
+	// 흑 비숍 b7 이 h1 킹을 체크 — 유일한 응수 Nf3 의 나이트가 잠겨 있다
+	const chess = new Chess("7k/1b6/8/8/8/8/7P/6NK w - - 0 1");
+	const h: Heat = { g1: { heat: 0, lock: 2, color: "w" } };
+	const st = status(chess, h);
+	expect(st.over).toBe(true);
+	expect(st.text).toContain("히트메이트");
+});
+
+test("체크가 아니면 전부 과열은 한 턴 쉼이다", () => {
+	const chess = new Chess("7k/8/8/8/8/8/6PP/6NK w - - 0 1");
+	const h: Heat = {
+		g1: { heat: 0, lock: 2, color: "w" },
+		g2: { heat: 0, lock: 2, color: "w" },
+		h2: { heat: 0, lock: 2, color: "w" },
+	};
+	const st = status(chess, h);
+	expect(st.over).toBe(false);
+	expect(st.mustPass).toBe(true);
+});
+
+test("pass 는 차례만 넘기고 내 기물을 식힌다", () => {
+	const chess = new Chess("7k/8/8/8/8/8/6PP/6NK w - - 0 1");
+	const h = pass(chess, {
+		g1: { heat: 0, lock: 2, color: "w" },
+		h2: { heat: 2, lock: 0, color: "w" },
+	});
+	const f = chess.fen().split(" ");
+	expect(chess.turn()).toBe("b");
+	expect(f[3]).toBe("-"); // 앙파상 소멸
+	expect(f[4]).toBe("1"); // 50수 규칙 카운터는 계속 간다
+	expect(f[5]).toBe("1"); // 백 패스로는 수 번호가 늘지 않는다
+	expect(h.g1!.lock).toBe(1);
+	expect(h.h2!.heat).toBe(1);
 });
 
 test("AI 는 과열되지 않은 합법수를 고른다", () => {

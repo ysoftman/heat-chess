@@ -48,8 +48,6 @@ const NAME: Record<string, string> = {
 	p: "폰",
 };
 
-// 승격을 감안해 부족분만 센다
-const FULL: Record<string, number> = { q: 1, r: 2, b: 2, n: 2, p: 8 };
 const PAWNS: Record<string, number> = { q: 9, r: 5, b: 3, n: 3, p: 1 };
 
 const RECORD_KEY = "heat-chess-record";
@@ -95,7 +93,10 @@ let airconSq: Record<"w" | "b", string | null> = { w: null, b: null };
 let picking: "w" | "b" | null = null;
 let audio: AudioContext | undefined;
 let timer: ReturnType<typeof setInterval> | undefined;
+let pending: ReturnType<typeof setTimeout> | undefined;
 let left = 0;
+// 히스토리는 pass() 의 FEN 재적재로 못 쓰니, 잡힌 기물을 수를 둘 때 누적한다 (승격에도 정확)
+let lostPieces: Record<"w" | "b", string[]> = { w: [], b: [] };
 let record = loadRecord();
 let recorded = false;
 
@@ -149,19 +150,29 @@ function playSound(m: Move, overheated: boolean) {
 	if (chess.isCheck()) setTimeout(() => thud(190, 0.4, "triangle", 0.3), 130);
 }
 
+// step 체인 예약은 언제나 하나 — 새 예약이 이전 것을 무효화한다
+function later(fn: () => void, ms: number) {
+	clearTimeout(pending);
+	pending = setTimeout(fn, ms);
+}
+
 function stopClock() {
 	clearInterval(timer);
 	timer = undefined;
 	clockEl.textContent = "";
 }
 
-// 제한 시간을 넘기면 그 자리에서 진다
+// 제한 시간을 넘기면 그 자리에서 진다. 백그라운드 탭에서 인터벌이
+// 스로틀돼도 어긋나지 않게 마감 시각 기준으로 남은 시간을 계산한다
 function startClock() {
 	clearInterval(timer);
 	left = Number(turnEl.value);
+	const end = Date.now() + left * 1000;
 	drawClock();
 	timer = setInterval(() => {
-		left--;
+		const next = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+		if (next === left) return;
+		left = next;
 		drawClock();
 		if (left <= 5 && left > 0) thud(220, 0.12, "sine", 0.18);
 		if (left <= 0) {
@@ -172,7 +183,7 @@ function startClock() {
 			finish(chess.turn() === "w" ? "l" : "w");
 			thud(42, 1.2, "sawtooth", 0.32);
 		}
-	}, 1000);
+	}, 250);
 }
 
 function drawClock() {
@@ -183,21 +194,9 @@ function drawClock() {
 	clockEl.classList.toggle("low", left <= 5);
 }
 
-// 히스토리는 pass() 의 FEN 재적재로 날아가므로 남은 기물에서 역산한다
-function lost(color: "w" | "b") {
-	const have: Record<string, number> = {};
-	for (const row of chess.board())
-		for (const p of row)
-			if (p?.color === color) have[p.type] = (have[p.type] ?? 0) + 1;
-	const gone: string[] = [];
-	for (const [type, full] of Object.entries(FULL))
-		for (let i = have[type] ?? 0; i < full; i++) gone.push(type);
-	return gone;
-}
-
 function renderTaken() {
-	const lostW = lost("w");
-	const lostB = lost("b");
+	const lostW = lostPieces.w;
+	const lostB = lostPieces.b;
 	const worth = (g: string[]) => g.reduce((s, t) => s + PAWNS[t]!, 0);
 	const edge = worth(lostB) - worth(lostW);
 	// 각 진영 쪽에 그 진영이 잡은 상대 기물을 둔다 (위=흑, 아래=백)
@@ -312,6 +311,8 @@ function render() {
 
 function doMove(from: string, to: string) {
 	const move = chess.move({ from, to, promotion: "q" });
+	if (move.captured)
+		lostPieces[move.color === "w" ? "b" : "w"].push(move.captured);
 	// 과열 판정은 잠금 유무가 아니라 이동 전 열로 본다 (에어콘 모드는 히트 규칙 없음)
 	const overheated = (heat[from]?.heat ?? 0) + 1 >= OVERHEAT;
 	heat = applyHeat(heat, move, airconOn);
@@ -325,20 +326,23 @@ function doMove(from: string, to: string) {
 	if (hit) {
 		busy = true;
 		stopClock();
+		clearTimeout(pending);
 		statusEl.textContent = `❄ 에어콘 기물 격추 — ${move.color === "w" ? "백" : "흑"} 승`;
 		finish(move.color === "w" ? "w" : "l");
 		thud(42, 1.2, "sawtooth", 0.32);
 		return;
 	}
-	setTimeout(step, 20);
+	later(step, 20);
 }
 
 function step() {
+	if (busy) return;
 	const st = status(chess, heat);
 	statusEl.textContent = st.text;
 	if (st.over) {
 		busy = true;
 		stopClock();
+		clearTimeout(pending);
 		const draw = chess.isDraw() || chess.isStalemate();
 		finish(draw ? "d" : chess.turn() === "w" ? "l" : "w");
 		return;
@@ -346,14 +350,19 @@ function step() {
 	if (st.mustPass) {
 		heat = pass(chess, heat);
 		render();
-		setTimeout(step, 700);
+		// 넘어간 턴이 눈에 보이게 잠깐 멈춘다 — 그동안 입력은 busy 로 막는다
+		busy = true;
+		later(() => {
+			busy = false;
+			step();
+		}, 700);
 		return;
 	}
 	if (modeEl.value === "ai" && chess.turn() === "b") {
 		busy = true;
 		stopClock();
 		statusEl.textContent = "AI 생각 중…";
-		setTimeout(() => {
+		later(() => {
 			const m = bestMove(chess, heat, Number(depthEl.value), airconOn);
 			busy = false;
 			if (m) doMove(m.from, m.to);
@@ -395,6 +404,8 @@ boardEl.addEventListener("click", (e) => {
 		else step();
 		return;
 	}
+	// AI(흑) 차례에는 사람 클릭으로 수를 두지 못한다
+	if (modeEl.value === "ai" && chess.turn() === "b") return;
 	const moves = legalMoves(chess, heat);
 	if (sel && moves.some((m) => m.from === sel && m.to === sq)) doMove(sel, sq);
 	else {
@@ -404,11 +415,13 @@ boardEl.addEventListener("click", (e) => {
 });
 
 function newGame() {
+	clearTimeout(pending);
 	chess = new Chess();
 	heat = {};
 	sel = null;
 	busy = false;
 	recorded = false;
+	lostPieces = { w: [], b: [] };
 	airconSq = { w: null, b: null };
 	picking = airconOn ? "w" : null;
 	stopClock();
@@ -431,6 +444,8 @@ gameModeEl.addEventListener("click", () => {
 	newGame();
 });
 
+document.getElementById("new-game")!.addEventListener("click", newGame);
+
 recordEl.addEventListener("click", () => {
 	if (!confirm("전적을 지울까요?")) return;
 	record = { w: 0, l: 0, d: 0 };
@@ -449,6 +464,7 @@ turnEl.addEventListener("change", () => {
 });
 
 themeEl.value = readStore(THEME_KEY) ?? "wood";
+if (!themeEl.value) themeEl.value = "wood";
 document.body.dataset.board = themeEl.value;
 themeEl.addEventListener("change", () => {
 	document.body.dataset.board = themeEl.value;
@@ -461,7 +477,8 @@ render();
 
 const buildInfoEl = document.getElementById("build-info");
 if (buildInfoEl) {
-	const version = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "develop";
+	const version =
+		typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "develop";
 	const commit = typeof __APP_COMMIT__ === "string" ? __APP_COMMIT__ : "dev";
 	const time =
 		typeof __APP_BUILD_TIME__ === "string"

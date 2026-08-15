@@ -67,6 +67,8 @@ export function pass(chess: Chess, prev: Heat): Heat {
 	const color = f[1] as Color;
 	f[1] = color === "w" ? "b" : "w";
 	f[3] = "-";
+	// 패스도 폰 이동/캡처 없는 반수 — 50수 규칙 카운터를 계속 올린다
+	f[4] = String(Number(f[4]) + 1);
 	if (color === "b") f[5] = String(Number(f[5]) + 1);
 	chess.load(f.join(" "));
 	const h = clone(prev);
@@ -153,7 +155,12 @@ function negamax(
 	return best;
 }
 
-export function bestMove(chess: Chess, h: Heat, depth = 3, noHeat = false): Move | null {
+export function bestMove(
+	chess: Chess,
+	h: Heat,
+	depth = 3,
+	noHeat = false,
+): Move | null {
 	const moves = legalMoves(chess, h);
 	if (moves.length === 0) return null;
 	let best = moves[0]!;

@@ -2,14 +2,17 @@ import { execSync } from "node:child_process";
 
 function git(cmd: string): string {
 	try {
-		return execSync(`git ${cmd}`, { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+		return execSync(`git ${cmd}`, {
+			encoding: "utf-8",
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
 	} catch {
 		return "";
 	}
 }
 
 const version = git("describe --tags --abbrev=0") || "develop";
-const commit = git("rev-parse --short HEAD");
+const commit = git("rev-parse --short HEAD") || "dev";
 const time = new Date().toISOString();
 
 const out = await Bun.build({

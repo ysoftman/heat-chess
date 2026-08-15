@@ -15,6 +15,7 @@
   "scripts": {
     "dev": "bun ./index.html",
     "build": "bun scripts/build.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
   }
 }

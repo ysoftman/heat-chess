@@ -391,6 +391,8 @@ function doMove(
 	later(step, 20);
 }
 
+const AI_DEPTH: Record<string, number> = { ai1: 1, ai2: 2, ai3: 4 };
+
 function step() {
 	if (busy) return;
 	const st = status(chess, heat);
@@ -423,7 +425,7 @@ function step() {
 			const m = bestMove(
 				chess,
 				heat,
-				Number(modeEl.value.slice(2)),
+				AI_DEPTH[modeEl.value] ?? 3,
 				airconOn,
 				airconOn ? airconSq.b : null,
 			);

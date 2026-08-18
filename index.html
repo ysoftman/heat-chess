@@ -254,8 +254,8 @@
         font-weight: 700;
         padding: 0 4px;
         border-radius: 6px;
-        background: #ff6a00;
-        color: #fff;
+        background: rgba(255, 106, 0, 0.38);
+        color: #ffdcc2;
       }
       .sq .badge {
         position: absolute;
@@ -289,9 +289,14 @@
       }
       /* 과열 배지 — 흰 빛을 머금은 열 그라데이션 (기존 파랑 ❄ 배지의 대체) */
       .badge.overheat {
-        background: linear-gradient(135deg, #ff3d00, #ff7a1a 55%, #ffd08a);
-        text-shadow: 0 0 6px #ffd08a;
-        box-shadow: 0 0 8px #ff5a00aa;
+        background: linear-gradient(
+          135deg,
+          rgba(255, 61, 0, 0.5),
+          rgba(255, 122, 26, 0.45) 55%,
+          rgba(255, 208, 138, 0.4)
+        );
+        text-shadow: 0 0 6px rgba(255, 208, 138, 0.45);
+        box-shadow: 0 0 8px rgba(255, 90, 0, 0.3);
       }
       .target::after {
         content: "";

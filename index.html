@@ -136,6 +136,17 @@
         color: var(--fg);
         border-color: var(--accent);
       }
+      /* 이중열돔 지속 표시 — 발동 문구가 사라져도 바뀐 규칙이 남아 보이게.
+         #record pill 과 같은 크기/모양, 색만 열 계열 단색 (대비 7.5:1) */
+      #dome-flag {
+        padding: 1px 9px;
+        border: 1px solid rgba(255, 122, 26, 0.4);
+        border-radius: 999px;
+        background: rgba(255, 90, 0, 0.16);
+        color: var(--warm);
+        font-size: 12px;
+        font-weight: 700;
+      }
       #board-wrap {
         display: grid;
         grid-template-columns: 20px minmax(0, min(88vw, 560px));
@@ -832,16 +843,18 @@
           text-overflow: ellipsis;
           white-space: nowrap;
         }
-        /* 2행: 되돌리기 · 테마(2칸) · 사운드 — 빈 셀 없이 채운다 */
-        #theme {
+        /* 2행: 되돌리기 · 진영 · 테마 · 사운드 — 빈 셀 없이 채운다.
+           2인 플레이는 진영 선택이 숨으니 테마가 그 칸을 메운다 */
+        #controls:has(#side[hidden]) #theme {
           grid-column: span 2;
         }
-        /* 3행(아이템 모드): 백/흑 버튼이 반씩, vs AI 는 백 버튼만 보이니 한 줄을 다 쓴다 */
+        /* 3행(아이템 모드): 백/흑 버튼이 반씩, vs AI 는 사람 쪽 하나만 보이니 한 줄을 다 쓴다 */
         #item-w,
         #item-b {
           grid-column: span 2;
         }
-        #item-w:has(+ #item-b[hidden]) {
+        #item-w:has(+ #item-b[hidden]),
+        #controls:has(#item-w[hidden]) #item-b {
           grid-column: 1 / -1;
         }
         #controls,
@@ -863,6 +876,12 @@
         <div id="bar">
           <span id="status" aria-live="polite">백 차례</span>
           <span id="clock"></span>
+          <span
+            id="dome-flag"
+            title="이중열돔 발동 중 — 양쪽 모두 2턴 연속 움직이면 과열"
+            hidden
+            >♨️ 열돔</span
+          >
           <button
             type="button"
             id="record"
@@ -911,6 +930,10 @@
           <button type="button" id="undo" title="수 되돌리기" disabled>
             ↩ 되돌리기
           </button>
+          <select id="side" title="내가 잡을 진영 (vs AI)">
+            <option value="w">백으로 플레이</option>
+            <option value="b">흑으로 플레이</option>
+          </select>
           <select id="theme" title="체스판 색상">
             <option value="wood">다크 우드</option>
             <option value="purple">보라</option>

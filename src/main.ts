@@ -61,6 +61,7 @@ const RECORD_KEY = "heat-chess-record";
 const THEME_KEY = "heat-chess-board";
 const TURN_KEY = "heat-chess-turn";
 const SOUND_KEY = "heat-chess-sound";
+const SIDE_KEY = "heat-chess-side";
 
 // 프라이빗 모드 등에서 localStorage 접근 자체가 막힐 수 있다
 function readStore(key: string) {
@@ -86,8 +87,12 @@ const takenBottomEl = document.getElementById("taken-bottom")!;
 const statusEl = document.getElementById("status")!;
 const clockEl = document.getElementById("clock")!;
 const recordEl = document.getElementById("record")!;
+const domeFlagEl = document.getElementById("dome-flag")!;
 const modeEl = document.getElementById("mode") as HTMLSelectElement;
+const sideEl = document.getElementById("side") as HTMLSelectElement;
 const themeEl = document.getElementById("theme") as HTMLSelectElement;
+const ranksEl = document.getElementById("ranks")!;
+const filesEl = document.getElementById("files")!;
 const turnEl = document.getElementById("turn") as HTMLSelectElement;
 const turnLabelEl = document.getElementById("turn-label")!;
 const undoEl = document.getElementById("undo") as HTMLButtonElement;
@@ -138,6 +143,13 @@ type Snap = {
 };
 let history: Snap[] = [];
 let pendingPromo: { from: string; to: string } | null = null;
+// 사람이 잡는 진영 — vs AI 에서만 의미가 있다 (2인 플레이는 양쪽 다 사람).
+// 셀렉트를 바로 읽지 않는 건, 확인 취소 시 값을 되돌릴 기준이 필요해서다
+let humanColor: "w" | "b" = "w";
+const humanSide = () => humanColor;
+const aiSide = (): "w" | "b" => (humanColor === "w" ? "b" : "w");
+// 사람이 흑이면 보드를 뒤집어 자기 진영이 아래로 오게 한다
+const flipped = () => modeEl.value.startsWith("ai") && humanColor === "b";
 
 // localStorage 는 사용자가 직접 고칠 수 있으니 값을 믿지 않는다
 function loadRecord() {
@@ -153,7 +165,7 @@ function drawRecord() {
 	recordEl.textContent = `${record.w}승 ${record.l}패 ${record.d}무`;
 }
 
-// 사람이 백을 잡는 vs AI 판만 전적으로 센다
+// vs AI 판만 전적으로 센다 — 결과는 사람 진영(#side) 기준
 function finish(result: "w" | "l" | "d") {
 	if (recorded || !modeEl.value.startsWith("ai")) return;
 	recorded = true;
@@ -229,7 +241,7 @@ function startClock() {
 			busy = true;
 			const winner = chess.turn() === "w" ? "흑" : "백";
 			statusEl.textContent = `시간 초과, ${winner} 승`;
-			finish(chess.turn() === "w" ? "l" : "w");
+			finish(chess.turn() === humanSide() ? "l" : "w");
 			thud(42, 1.2, "sawtooth", 0.32);
 		}
 	}, 250);
@@ -243,26 +255,37 @@ function drawClock() {
 	clockEl.classList.toggle("low", left <= 5);
 }
 
-function renderTaken() {
+function renderTaken(flip: boolean) {
 	const lostW = lostPieces.w;
 	const lostB = lostPieces.b;
 	const worth = (g: string[]) => g.reduce((s, t) => s + PAWNS[t]!, 0);
 	const edge = worth(lostB) - worth(lostW);
-	// 각 진영 쪽에 그 진영이 잡은 상대 기물을 둔다 (위=흑, 아래=백)
+	// 각 진영 쪽에 그 진영이 잡은 상대 기물을 둔다.
+	// 기본은 위=흑·아래=백, 보드를 뒤집으면 트레이도 함께 바뀐다
 	fillTray(
-		takenTopEl,
+		flip ? takenBottomEl : takenTopEl,
 		"흑이 잡은 기물",
 		lostW,
 		"w",
 		edge < 0 ? `+${-edge}` : "",
 	);
 	fillTray(
-		takenBottomEl,
+		flip ? takenTopEl : takenBottomEl,
 		"백이 잡은 기물",
 		lostB,
 		"b",
 		edge > 0 ? `+${edge}` : "",
 	);
+}
+
+// 보드 뒤집힘에 맞춰 랭크/파일 라벨 텍스트만 갱신한다 (span 구조는 그대로)
+function drawCoords(flip: boolean) {
+	ranksEl.querySelectorAll("span").forEach((el, i) => {
+		el.textContent = String(flip ? i + 1 : 8 - i);
+	});
+	filesEl.querySelectorAll("span").forEach((el, i) => {
+		el.textContent = "abcdefgh"[flip ? 7 - i : i]!;
+	});
 }
 
 function fillTray(
@@ -330,13 +353,13 @@ function itemLabel(item: Item, suffix = ""): (Node | string)[] {
 	return [ico, ` ${ITEM_INFO[item].label}${suffix}`];
 }
 
-// 아이템 버튼 — vs AI 는 사람(백) 것만 보이고, 2인은 현재 차례인 쪽만 활성화
+// 아이템 버튼 — vs AI 는 사람 것만 보이고, 2인은 현재 차례인 쪽만 활성화
 function drawItems() {
 	const ai = modeEl.value.startsWith("ai");
 	for (const color of ["w", "b"] as const) {
 		const btn = color === "w" ? itemWEl : itemBEl;
 		const item = items[color];
-		if (!itemOn || !item || (ai && color === "b")) {
+		if (!itemOn || !item || (ai && color === aiSide())) {
 			btn.hidden = true;
 			continue;
 		}
@@ -407,13 +430,14 @@ function activateItem(color: "w" | "b"): boolean {
 	return true;
 }
 
-// AI(흑) 아이템 휴리스틱 — 선풍기: 잠긴 기물이 생기면 즉시,
+// AI 아이템 휴리스틱 — 선풍기: 잠긴 기물이 생기면 즉시,
 // 아메리카노: 자기 6수째부터, 이중열돔: 자기 4수째부터 첫 차례에 사용
 function aiWantsItem(): boolean {
-	const item = items.b;
-	if (!item || itemUsed.b) return false;
-	if (item === "fan") return hasLocked("b");
-	// FEN 풀무브 번호 = 흑이 이제 두는 n수째
+	const side = aiSide();
+	const item = items[side];
+	if (!item || itemUsed[side]) return false;
+	if (item === "fan") return hasLocked(side);
+	// FEN 풀무브 번호 = 지금 두는 쪽의 n수째 (백·흑 모두 같은 번호를 쓴다)
 	const n = Number(chess.fen().split(" ")[5]);
 	return n >= (item === "coffee" ? 6 : 4);
 }
@@ -422,15 +446,23 @@ function render() {
 	drawMoves();
 	updateUndo();
 	drawItems();
-	renderTaken();
+	// 열돔은 게임 끝까지 지속되는 규칙 변경이라 배지로 남긴다 (undo 로 풀리면 함께 사라진다)
+	domeFlagEl.hidden = !domeActive;
+	const flip = flipped();
+	renderTaken(flip);
+	drawCoords(flip);
 	const board = chess.board();
 	const targets = sel
 		? legalMoves(chess, heat).filter((m) => m.from === sel)
 		: [];
 	boardEl.replaceChildren(
 		...board.flatMap((row, r) =>
-			row.map((piece, f) => {
-				const sq = "abcdefgh"[f]! + (8 - r);
+			row.map((_, f) => {
+				// 뒤집을 때는 칸 좌표만 반전한다 — DOM 순서/배지 위치는 그대로 유지
+				const rr = flip ? 7 - r : r;
+				const ff = flip ? 7 - f : f;
+				const piece = board[rr]![ff];
+				const sq = "abcdefgh"[ff]! + (8 - rr);
 				const el = document.createElement("div");
 				el.className = `sq ${(r + f) % 2 ? "dark" : "light"}`;
 				el.dataset.sq = sq;
@@ -474,7 +506,7 @@ function render() {
 					}
 				}
 				// 내 에어컨 기물 표시 — vs AI 에서만. 2인 플레이는 화면을 같이 보므로 숨긴다
-				if (sq === airconSq.w && modeEl.value.startsWith("ai")) {
+				if (modeEl.value.startsWith("ai") && sq === airconSq[humanSide()]) {
 					el.classList.add("aircon");
 					// 바람 줄기 두 레이어 (두 번째는 더 큰 바람이 드물게)
 					const wind = document.createElement("span");
@@ -496,7 +528,7 @@ function render() {
 }
 
 // 스냅샷은 사람의 수만 남긴다 — vs AI 에서 undo 한 번이
-// AI 응답과 사람의 수를 함께 되돌리기 위함 (AI 수의 스냅샷을 되돌리면 흑 차례가 된다)
+// AI 응답과 사람의 수를 함께 되돌리기 위함 (AI 수의 스냅샷을 되돌리면 AI 차례가 된다)
 function doMove(
 	from: string,
 	to: string,
@@ -533,7 +565,7 @@ function doMove(
 		stopClock();
 		clearTimeout(pending);
 		statusEl.textContent = `❄️ 에어컨 기물 격추, ${move.color === "w" ? "백" : "흑"} 승`;
-		finish(move.color === "w" ? "w" : "l");
+		finish(move.color === humanSide() ? "w" : "l");
 		thud(42, 1.2, "sawtooth", 0.32);
 		return;
 	}
@@ -553,16 +585,16 @@ function step() {
 		stopClock();
 		clearTimeout(pending);
 		const draw = chess.isDraw() || chess.isStalemate();
-		finish(draw ? "d" : chess.turn() === "w" ? "l" : "w");
+		finish(draw ? "d" : chess.turn() === humanSide() ? "l" : "w");
 		return;
 	}
-	// AI(흑) 아이템 자동 사용 — 패스 판정보다 먼저 (전부 과열이어도 선풍기로 풀 수 있다).
+	// AI 아이템 자동 사용 — 패스 판정보다 먼저 (전부 과열이어도 선풍기로 풀 수 있다).
 	// 연출이 보이게 잠깐 멈춘 뒤 이어서 수를 둔다
 	if (
 		modeEl.value.startsWith("ai") &&
-		chess.turn() === "b" &&
+		chess.turn() === aiSide() &&
 		aiWantsItem() &&
-		activateItem("b")
+		activateItem(aiSide())
 	) {
 		busy = true;
 		stopClock();
@@ -576,7 +608,7 @@ function step() {
 		// 사람 차례에 선풍기로 풀 수 있으면 자동 패스를 보류하고 입력을 기다린다.
 		// 시계는 그대로 흘러 시간패 압박은 유지된다 (AI 는 위에서 이미 자동 사용)
 		const side = chess.turn();
-		const human = !modeEl.value.startsWith("ai") || side === "w";
+		const human = !modeEl.value.startsWith("ai") || side === humanSide();
 		if (human && items[side] === "fan" && !itemUsed[side] && hasLocked(side)) {
 			statusEl.textContent =
 				"움직일 기물이 없습니다 — 선풍기를 쓰거나, 시간이 다 되면 시간패";
@@ -594,7 +626,7 @@ function step() {
 		}, 700);
 		return;
 	}
-	if (modeEl.value.startsWith("ai") && chess.turn() === "b") {
+	if (modeEl.value.startsWith("ai") && chess.turn() === aiSide()) {
 		busy = true;
 		stopClock();
 		statusEl.textContent = "AI 생각 중…";
@@ -604,7 +636,7 @@ function step() {
 				heat,
 				AI_DEPTH[modeEl.value] ?? 3,
 				airconOn,
-				airconOn ? airconSq.b : null,
+				airconOn ? airconSq[aiSide()] : null,
 				AI_TIME[modeEl.value] ?? 0,
 				overheatLimit(),
 			);
@@ -676,7 +708,7 @@ boardEl.addEventListener("click", (e) => {
 		if (!p || p.color !== picking || p.type === "k") return;
 		airconSq[picking] = sq;
 		if (modeEl.value.startsWith("ai")) {
-			airconSq.b = randomAircon("b");
+			airconSq[aiSide()] = randomAircon(aiSide());
 			picking = null;
 		} else picking = picking === "w" ? "b" : null;
 		render();
@@ -684,8 +716,8 @@ boardEl.addEventListener("click", (e) => {
 		else step();
 		return;
 	}
-	// AI(흑) 차례에는 사람 클릭으로 수를 두지 못한다
-	if (modeEl.value.startsWith("ai") && chess.turn() === "b") return;
+	// AI 차례에는 사람 클릭으로 수를 두지 못한다
+	if (modeEl.value.startsWith("ai") && chess.turn() === aiSide()) return;
 	const moves = legalMoves(chess, heat);
 	if (sel && moves.some((m) => m.from === sel && m.to === sq)) {
 		const opts = moves.filter((m) => m.from === sel && m.to === sq);
@@ -709,7 +741,12 @@ function newGame() {
 	recorded = false;
 	lostPieces = { w: [], b: [] };
 	airconSq = { w: null, b: null };
-	picking = airconOn ? "w" : null;
+	// vs AI 는 사람 진영만 고르고, 2인은 백부터 번갈아 고른다
+	picking = airconOn
+		? modeEl.value.startsWith("ai")
+			? humanSide()
+			: "w"
+		: null;
 	// 아이템 모드면 시작 시 양쪽에 아이템 1개씩 랜덤 부여
 	items = itemOn ? { w: rollItem(), b: rollItem() } : { w: null, b: null };
 	itemUsed = { w: false, b: false };
@@ -722,13 +759,15 @@ function newGame() {
 	if (picking) statusEl.textContent = pickText();
 	else {
 		step();
-		// 받은 아이템 안내 — vs AI 에서 흑(AI) 아이템은 비밀 유지
-		if (itemOn && items.w) {
-			const foe =
-				!modeEl.value.startsWith("ai") && items.b
-					? ` · 흑 ${ITEM_INFO[items.b].label}`
-					: "";
-			statusEl.textContent += ` — 🎁 백 ${ITEM_INFO[items.w].label}${foe}`;
+		// 받은 아이템 안내 — vs AI 에서 AI 아이템은 비밀 유지
+		if (itemOn) {
+			const sides: ("w" | "b")[] = modeEl.value.startsWith("ai")
+				? [humanSide()]
+				: ["w", "b"];
+			const shown = sides
+				.filter((c) => items[c])
+				.map((c) => `${c === "w" ? "백" : "흑"} ${ITEM_INFO[items[c]!].label}`);
+			if (shown.length) statusEl.textContent += ` — 🎁 ${shown.join(" · ")}`;
 		}
 	}
 }
@@ -737,10 +776,27 @@ function newGame() {
 const confirmDiscard = () =>
 	sanMoves.length === 0 || confirm("진행 중인 게임을 버리고 새로 시작할까요?");
 
+// 진영 선택은 vs AI 에서만 의미가 있다
+function drawSide() {
+	sideEl.hidden = !modeEl.value.startsWith("ai");
+}
+
 modeEl.addEventListener("change", () => {
-	// vs AI ↔ 2인 전환 시 아이템 버튼/에어컨 표시가 달라진다
+	// vs AI ↔ 2인 전환 시 아이템 버튼/에어컨 표시·보드 방향이 달라진다
+	drawSide();
 	render();
 	if (!busy && !picking) step();
+});
+
+sideEl.addEventListener("change", () => {
+	// 취소하면 셀렉트 값을 현재 진영으로 되돌리고 아무 것도 하지 않는다
+	if (!confirmDiscard()) {
+		sideEl.value = humanColor;
+		return;
+	}
+	humanColor = sideEl.value === "b" ? "b" : "w";
+	writeStore(SIDE_KEY, humanColor);
+	newGame();
 });
 
 // 아이템 버튼 — 자기 차례 & busy 아닐 때만 발동 (세부 조건은 activateItem 이 확인)
@@ -844,6 +900,10 @@ themeEl.addEventListener("change", () => {
 	document.body.dataset.board = themeEl.value;
 	writeStore(THEME_KEY, themeEl.value);
 });
+
+humanColor = readStore(SIDE_KEY) === "b" ? "b" : "w";
+sideEl.value = humanColor;
+drawSide();
 
 drawRecord();
 drawGameMode();

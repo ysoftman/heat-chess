@@ -101,12 +101,8 @@ export function pass(chess: Chess, prev: Heat): Heat {
 
 export type Item = "fan" | "coffee" | "dome";
 
-// 아이템 추첨 — fan 80%, coffee 15%, dome 5%. r 은 테스트 주입용
-export function rollItem(r = Math.random()): Item {
-	if (r < 0.8) return "fan";
-	if (r < 0.95) return "coffee";
-	return "dome";
-}
+// 시작 시 양쪽 모두 이 셋을 다 갖는다 — 표시·탐색 순서도 이 순서를 따른다
+export const ITEMS: readonly Item[] = ["fan", "coffee", "dome"];
 
 // 선풍기 — 내(color) 잠긴 기물 전부 즉시 해제 (해제 = heat 0 이므로 셀 제거)
 // squares 는 해제된 칸 목록 (애니메이션용). 잠긴 게 없으면 원본 그대로

@@ -8,11 +8,11 @@ import {
 	capturedSquare,
 	type Heat,
 	hasCoffeeTarget,
+	ITEMS,
 	type Item,
 	legalMoves,
 	OVERHEAT,
 	pass,
-	rollItem,
 	status,
 	useCoffee,
 	useFan,
@@ -100,8 +100,7 @@ const soundEl = document.getElementById("sound") as HTMLButtonElement;
 const movesEl = document.getElementById("moves")!;
 const promoEl = document.getElementById("promo")!;
 const promoBoxEl = document.getElementById("promo-box")!;
-const itemWEl = document.getElementById("item-w") as HTMLButtonElement;
-const itemBEl = document.getElementById("item-b") as HTMLButtonElement;
+const itemsEl = document.getElementById("items")!;
 
 let chess = new Chess();
 let heat: Heat = {};
@@ -112,13 +111,22 @@ let airconSq: Record<"w" | "b", string | null> = { w: null, b: null };
 let picking: "w" | "b" | null = null;
 // 아이템 모드 — 히트 규칙 + 아이템. 에어컨과 동시에 켜지지 않는다
 let itemOn = false;
-// 시작 시 부여된 아이템(1회용) — 소진 표시를 위해 사용 후에도 종류는 남긴다
-let items: Record<"w" | "b", Item | null> = { w: null, b: null };
-let itemUsed: Record<"w" | "b", boolean> = { w: false, b: false };
-// 이중열돔 — 발동되면 게임 끝까지 과열 임계값 4→2 (모든 기물, 양쪽 모두)
-let domeActive = false;
+// 양쪽 모두 시작 시 3종을 다 갖는다 — 아이템별로 1회씩 쓴다
+const freshUse = (): Record<Item, boolean> => ({
+	fan: false,
+	coffee: false,
+	dome: false,
+});
+let itemUsed: Record<"w" | "b", Record<Item, boolean>> = {
+	w: freshUse(),
+	b: freshUse(),
+};
+// 이중열돔 — 발동 후 DOME_TURNS 턴 동안 과열 임계값 4→2 (모든 기물, 양쪽 모두).
+// 1턴 = 양쪽 합쳐 한 수(ply), 패스도 1턴. 0 이면 비활성
+let domeTurns = 0;
 const DOME_OVERHEAT = 2;
-const overheatLimit = () => (domeActive ? DOME_OVERHEAT : OVERHEAT);
+const DOME_TURNS = 10;
+const overheatLimit = () => (domeTurns > 0 ? DOME_OVERHEAT : OVERHEAT);
 let audio: AudioContext | undefined;
 let master: GainNode | undefined;
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -130,6 +138,8 @@ let record = loadRecord();
 let recorded = false;
 let soundOn = readStore(SOUND_KEY) !== "off";
 let sanMoves: string[] = [];
+// AI 가 아이템을 쓴 수 번호 — 한 턴에 하나만 쓰게 막는다 (-1 = 아직 없음)
+let aiItemPly = -1;
 // undo 용 스냅샷 — 수를 두기 직전 상태를 담는다 (heat 는 불변이라 참조로 충분)
 type Snap = {
 	fen: string;
@@ -137,9 +147,8 @@ type Snap = {
 	lost: Record<"w" | "b", string[]>;
 	aircon: Record<"w" | "b", string | null>;
 	san: string[];
-	items: Record<"w" | "b", Item | null>;
-	used: Record<"w" | "b", boolean>;
-	dome: boolean;
+	used: Record<"w" | "b", Record<Item, boolean>>;
+	dome: number;
 };
 let history: Snap[] = [];
 let pendingPromo: { from: string; to: string } | null = null;
@@ -336,7 +345,7 @@ const ITEM_INFO: Record<Item, { label: string; desc: string }> = {
 	},
 	dome: {
 		label: "♨️ 이중열돔",
-		desc: "게임 끝까지 과열 임계값 4→2 (양쪽 모두)",
+		desc: `발동 후 ${DOME_TURNS}턴 동안 과열 임계값 4→2 (양쪽 모두)`,
 	},
 };
 
@@ -353,55 +362,61 @@ function itemLabel(item: Item, suffix = ""): (Node | string)[] {
 	return [ico, ` ${ITEM_INFO[item].label}${suffix}`];
 }
 
-// 아이템 버튼 — vs AI 는 사람 것만 보이고, 2인은 현재 차례인 쪽만 활성화
+// 지금 써서 효과가 있는 아이템인지 — 헛소모를 막는 조건 (열돔은 언제나 가능)
+function itemReady(color: "w" | "b", item: Item): boolean {
+	if (item === "fan") return hasLocked(color);
+	if (item === "coffee")
+		return hasCoffeeTarget(heat, chess, color === "w" ? "b" : "w");
+	return true;
+}
+
+// 아이템 버튼 하나 — 진영 표시는 양쪽이 다 보이는 2인 플레이에서만 붙인다
+function itemButton(color: "w" | "b", item: Item, showSide: boolean) {
+	const btn = document.createElement("button");
+	btn.type = "button";
+	btn.dataset.color = color;
+	btn.dataset.item = item;
+	const used = itemUsed[color][item];
+	// 소진(✓)/조건 불충족 대기(⏳)/사용 가능을 구분해 "못 받은 것"으로 오인하지 않게 한다
+	const waiting = !used && !itemReady(color, item);
+	btn.replaceChildren(
+		...(showSide ? [`${color === "w" ? "백" : "흑"} `] : []),
+		...itemLabel(item, used ? " ✓" : waiting ? " ⏳" : ""),
+	);
+	btn.title = used
+		? "이미 사용한 아이템"
+		: waiting
+			? item === "fan"
+				? "과열 기물이 생기면 사용할 수 있다"
+				: "잠글 상대 기물이 생기면 사용할 수 있다"
+			: ITEM_INFO[item].desc;
+	btn.classList.toggle("used", used);
+	btn.classList.toggle("wait", waiting);
+	btn.disabled = used || waiting || busy || chess.turn() !== color;
+	return btn;
+}
+
+// 아이템 버튼 — vs AI 는 사람 것 3개만 보이고(AI 아이템은 비공개),
+// 2인은 양쪽 6개를 그리되 현재 차례인 쪽만 활성화된다
 function drawItems() {
-	const ai = modeEl.value.startsWith("ai");
-	for (const color of ["w", "b"] as const) {
-		const btn = color === "w" ? itemWEl : itemBEl;
-		const item = items[color];
-		if (!itemOn || !item || (ai && color === aiSide())) {
-			btn.hidden = true;
-			continue;
-		}
-		btn.hidden = false;
-		const used = itemUsed[color];
-		// 소진(✓)/조건 불충족 대기(⏳)/사용 가능을 구분해 "못 받은 것"으로 오인하지 않게 한다
-		const waiting =
-			!used &&
-			(item === "fan"
-				? !hasLocked(color)
-				: item === "coffee" &&
-					!hasCoffeeTarget(heat, chess, color === "w" ? "b" : "w"));
-		btn.replaceChildren(
-			`${color === "w" ? "백" : "흑"} `,
-			...itemLabel(item, used ? " ✓" : waiting ? " ⏳" : ""),
-		);
-		btn.title = used
-			? "이미 사용한 아이템"
-			: waiting
-				? item === "fan"
-					? "과열 기물이 생기면 사용할 수 있다"
-					: "잠글 상대 기물이 생기면 사용할 수 있다"
-				: ITEM_INFO[item].desc;
-		btn.classList.toggle("used", used);
-		btn.classList.toggle("wait", waiting);
-		btn.disabled = used || waiting || busy || chess.turn() !== color;
-	}
+	const sides: ("w" | "b")[] = !itemOn
+		? []
+		: modeEl.value.startsWith("ai")
+			? [humanSide()]
+			: ["w", "b"];
+	itemsEl.replaceChildren(
+		...sides.flatMap((color) =>
+			ITEMS.map((item) => itemButton(color, item, sides.length > 1)),
+		),
+	);
 }
 
 // 아이템 발동 — 성공하면 true. 턴을 소모하지 않는다 (발동 후 그대로 수를 둔다)
-function activateItem(color: "w" | "b"): boolean {
-	const item = items[color];
-	if (!itemOn || !item || itemUsed[color] || chess.turn() !== color)
-		return false;
-	if (item === "fan" && !hasLocked(color)) return false;
-	// 커피도 대상 없이 쓰면 헛소모 — 발동 전에 검사해 아이템을 지킨다
-	if (
-		item === "coffee" &&
-		!hasCoffeeTarget(heat, chess, color === "w" ? "b" : "w")
-	)
-		return false;
-	itemUsed[color] = true;
+function activateItem(color: "w" | "b", item: Item): boolean {
+	if (!itemOn || itemUsed[color][item] || chess.turn() !== color) return false;
+	// 대상 없이 쓰면 헛소모 — 발동 전에 검사해 아이템을 지킨다
+	if (!itemReady(color, item)) return false;
+	itemUsed[color][item] = true;
 	// render 가 칸을 새로 그린 뒤 연출을 얹어야 replaceChildren 에 지워지지 않는다
 	if (item === "fan") {
 		const r = useFan(heat, color);
@@ -414,7 +429,7 @@ function activateItem(color: "w" | "b"): boolean {
 		render();
 		if (r.square) coffeeFx(boardEl, r.square);
 	} else {
-		domeActive = true;
+		domeTurns = DOME_TURNS;
 		// 발동 순간 새 임계값(2) 이상인 잔여 열은 1 로 눌러 배지 모순을 없앤다
 		// (소급 잠금보다 온화). heat 는 copy-on-write — 스냅샷이 참조 공유한다
 		if (Object.values(heat).some((c) => !c.lock && c.heat >= DOME_OVERHEAT)) {
@@ -430,24 +445,35 @@ function activateItem(color: "w" | "b"): boolean {
 	return true;
 }
 
-// AI 아이템 휴리스틱 — 선풍기: 잠긴 기물이 생기면 즉시,
-// 아메리카노: 자기 6수째부터, 이중열돔: 자기 4수째부터 첫 차례에 사용
-function aiWantsItem(): boolean {
+// AI 아이템 휴리스틱 — 한 턴에 하나만 고른다. 선풍기: 잠긴 기물이 생기면 즉시,
+// 아메리카노: 자기 6수째부터, 이중열돔: 자기 4수째부터
+function aiWantsItem(): Item | null {
 	const side = aiSide();
-	const item = items[side];
-	if (!item || itemUsed[side]) return false;
-	if (item === "fan") return hasLocked(side);
+	// 발동은 턴을 소모하지 않아 step() 이 다시 돌아온다 — 같은 수 번호에서는 한 번만
+	if (aiItemPly === sanMoves.length) return null;
 	// FEN 풀무브 번호 = 지금 두는 쪽의 n수째 (백·흑 모두 같은 번호를 쓴다)
 	const n = Number(chess.fen().split(" ")[5]);
-	return n >= (item === "coffee" ? 6 : 4);
+	const wants: Record<Item, boolean> = {
+		fan: true,
+		coffee: n >= 6,
+		dome: n >= 4,
+	};
+	return (
+		ITEMS.find(
+			(it) => !itemUsed[side][it] && wants[it] && itemReady(side, it),
+		) ?? null
+	);
 }
 
 function render() {
 	drawMoves();
 	updateUndo();
 	drawItems();
-	// 열돔은 게임 끝까지 지속되는 규칙 변경이라 배지로 남긴다 (undo 로 풀리면 함께 사라진다)
-	domeFlagEl.hidden = !domeActive;
+	// 열돔은 한동안 지속되는 규칙 변경이라 남은 턴 수를 배지로 남긴다
+	// (만료·undo 로 풀리면 배지와 보드 아지랑이가 함께 사라진다)
+	domeFlagEl.hidden = domeTurns === 0;
+	domeFlagEl.textContent = `♨️ 열돔 ${domeTurns}`;
+	boardEl.classList.toggle("dome-on", domeTurns > 0);
 	const flip = flipped();
 	renderTaken(flip);
 	drawCoords(flip);
@@ -527,6 +553,12 @@ function render() {
 	);
 }
 
+// 열돔 1턴 소모 — 양쪽 합쳐 한 수(ply)가 1턴이고 패스도 센다.
+// 반드시 그 수의 과열 판정(applyHeat) 뒤에 부른다
+function tickDome() {
+	if (domeTurns > 0) domeTurns--;
+}
+
 // 스냅샷은 사람의 수만 남긴다 — vs AI 에서 undo 한 번이
 // AI 응답과 사람의 수를 함께 되돌리기 위함 (AI 수의 스냅샷을 되돌리면 AI 차례가 된다)
 function doMove(
@@ -542,9 +574,9 @@ function doMove(
 			lost: { w: [...lostPieces.w], b: [...lostPieces.b] },
 			aircon: { ...airconSq },
 			san: [...sanMoves],
-			items: { ...items },
-			used: { ...itemUsed },
-			dome: domeActive,
+			// 진영별 중첩 객체라 얕은 복사로는 부족하다
+			used: { w: { ...itemUsed.w }, b: { ...itemUsed.b } },
+			dome: domeTurns,
 		});
 	const move = chess.move({ from, to, promotion });
 	sanMoves.push(move.san);
@@ -553,6 +585,8 @@ function doMove(
 	// 과열 판정은 잠금 유무가 아니라 이동 전 열로 본다 (에어컨 모드는 히트 규칙 없음)
 	const overheated = (heat[from]?.heat ?? 0) + 1 >= overheatLimit();
 	heat = applyHeat(heat, move, airconOn, overheatLimit());
+	// 이 수의 과열 판정까지 끝난 뒤에 열돔 턴을 깎는다
+	tickDome();
 	sel = null;
 	airconSq[move.color] = airconAfter(move, airconSq[move.color]);
 	const foe = move.color === "w" ? "b" : "w";
@@ -590,12 +624,12 @@ function step() {
 	}
 	// AI 아이템 자동 사용 — 패스 판정보다 먼저 (전부 과열이어도 선풍기로 풀 수 있다).
 	// 연출이 보이게 잠깐 멈춘 뒤 이어서 수를 둔다
-	if (
-		modeEl.value.startsWith("ai") &&
-		chess.turn() === aiSide() &&
-		aiWantsItem() &&
-		activateItem(aiSide())
-	) {
+	const aiItem =
+		modeEl.value.startsWith("ai") && chess.turn() === aiSide()
+			? aiWantsItem()
+			: null;
+	if (aiItem && activateItem(aiSide(), aiItem)) {
+		aiItemPly = sanMoves.length;
 		busy = true;
 		stopClock();
 		later(() => {
@@ -609,13 +643,15 @@ function step() {
 		// 시계는 그대로 흘러 시간패 압박은 유지된다 (AI 는 위에서 이미 자동 사용)
 		const side = chess.turn();
 		const human = !modeEl.value.startsWith("ai") || side === humanSide();
-		if (human && items[side] === "fan" && !itemUsed[side] && hasLocked(side)) {
+		if (human && itemOn && !itemUsed[side].fan && hasLocked(side)) {
 			statusEl.textContent =
 				"움직일 기물이 없습니다 — 선풍기를 쓰거나, 시간이 다 되면 시간패";
 			startClock();
 			return;
 		}
 		heat = pass(chess, heat);
+		// 패스도 한 수 — 열돔 지속 턴을 똑같이 깎는다
+		tickDome();
 		sanMoves.push("(패스)");
 		render();
 		// 넘어간 턴이 눈에 보이게 잠깐 멈춘다 — 그동안 입력은 busy 로 막는다
@@ -747,11 +783,10 @@ function newGame() {
 			? humanSide()
 			: "w"
 		: null;
-	// 아이템 모드면 시작 시 양쪽에 아이템 1개씩 랜덤 부여
-	items = itemOn ? { w: rollItem(), b: rollItem() } : { w: null, b: null };
-	itemUsed = { w: false, b: false };
-	domeActive = false;
-	boardEl.classList.remove("dome-on");
+	// 아이템 모드면 시작 시 양쪽이 3종을 다 갖는다 (각각 1회씩)
+	itemUsed = { w: freshUse(), b: freshUse() };
+	domeTurns = 0;
+	aiItemPly = -1;
 	sanMoves = [];
 	history = [];
 	stopClock();
@@ -759,16 +794,9 @@ function newGame() {
 	if (picking) statusEl.textContent = pickText();
 	else {
 		step();
-		// 받은 아이템 안내 — vs AI 에서 AI 아이템은 비밀 유지
-		if (itemOn) {
-			const sides: ("w" | "b")[] = modeEl.value.startsWith("ai")
-				? [humanSide()]
-				: ["w", "b"];
-			const shown = sides
-				.filter((c) => items[c])
-				.map((c) => `${c === "w" ? "백" : "흑"} ${ITEM_INFO[items[c]!].label}`);
-			if (shown.length) statusEl.textContent += ` — 🎁 ${shown.join(" · ")}`;
-		}
+		// 받은 아이템 안내 — 이제 양쪽 다 3종을 갖는다
+		if (itemOn)
+			statusEl.textContent += ` — 🎁 ${ITEMS.map((it) => ITEM_INFO[it].label).join(" · ")}`;
 	}
 }
 
@@ -799,12 +827,14 @@ sideEl.addEventListener("change", () => {
 	newGame();
 });
 
-// 아이템 버튼 — 자기 차례 & busy 아닐 때만 발동 (세부 조건은 activateItem 이 확인)
-itemWEl.addEventListener("click", () => {
-	if (!busy && !picking) activateItem("w");
-});
-itemBEl.addEventListener("click", () => {
-	if (!busy && !picking) activateItem("b");
+// 아이템 버튼 — drawItems() 가 매번 새로 만드니 컨테이너에서 위임으로 받는다.
+// 자기 차례 & busy 아닐 때만 발동 (세부 조건은 activateItem 이 확인)
+itemsEl.addEventListener("click", (e) => {
+	const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
+		"[data-item]",
+	);
+	if (!btn || busy || picking) return;
+	activateItem(btn.dataset.color as "w" | "b", btn.dataset.item as Item);
 });
 
 // 게임 모드 셀렉트 — 🔥 히트 / ❄️ 에어컨 / 🎁 아이템. 에어컨과 아이템은 동시에 켜지지 않는다
@@ -856,10 +886,11 @@ undoEl.addEventListener("click", () => {
 	heat = snap.heat;
 	lostPieces = { w: [...snap.lost.w], b: [...snap.lost.b] };
 	airconSq = { ...snap.aircon };
-	items = { ...snap.items };
-	itemUsed = { ...snap.used };
-	domeActive = snap.dome;
-	boardEl.classList.toggle("dome-on", domeActive);
+	itemUsed = { w: { ...snap.used.w }, b: { ...snap.used.b } };
+	// 남은 열돔 턴까지 되돌린다 — 배지와 보드 아지랑이는 render() 가 맞춘다
+	domeTurns = snap.dome;
+	// 되돌린 수 번호가 우연히 겹쳐 AI 가 한 턴 아이템을 못 쓰는 일을 막는다
+	aiItemPly = -1;
 	sanMoves = [...snap.san];
 	sel = null;
 	busy = false;

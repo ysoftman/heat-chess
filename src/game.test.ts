@@ -11,7 +11,6 @@ import {
 	LOCK_TURNS,
 	legalMoves,
 	pass,
-	rollItem,
 	status,
 	useCoffee,
 	useFan,
@@ -185,15 +184,6 @@ test("bestMove 는 시간 예산을 크게 넘기지 않고 보드를 복원한�
 	expect(chess.moves({ verbose: true }).some((x) => x.san === m!.san)).toBe(
 		true,
 	);
-});
-
-test("아이템 추첨 경계 — fan 80% / coffee 15% / dome 5%", () => {
-	expect(rollItem(0.0)).toBe("fan");
-	expect(rollItem(0.79)).toBe("fan");
-	expect(rollItem(0.8)).toBe("coffee");
-	expect(rollItem(0.94)).toBe("coffee");
-	expect(rollItem(0.95)).toBe("dome");
-	expect(rollItem(0.99)).toBe("dome");
 });
 
 test("선풍기는 내 잠긴 기물만 전부 해제한다", () => {

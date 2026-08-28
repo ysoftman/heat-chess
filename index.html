@@ -18,6 +18,12 @@
         --accent: #ff7a1a;
         --warm: #ffb066;
         --cool: #6fd3ff;
+        /* select 커스텀 화살표 — 기본(뮤트)/강조(웜)/에어컨(쿨). 색만 다른 같은 셰브런 */
+        --arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23a18a74' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        --arrow-hi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23ffb066' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        --arrow-cool: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236fd3ff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        /* 패널 공통 그림자 — 보드의 큰 그림자보다 한 단계 얕게, 배경 색조(웜 블랙) 틴트 */
+        --shadow-panel: inset 0 1px 0 #ffdcc20d, 0 14px 34px -22px #120a05d9;
       }
       /* radius 체계: 컨트롤(버튼/셀렉트) 8px, 패널/보드/모달 12px, #record 상태 필만 pill */
       /* 색상값은 lichess(lila) ui/lib/css/theme/board/_boards.scss 참고 */
@@ -52,30 +58,55 @@
         align-items: center;
         gap: 16px;
         padding: 28px 12px 40px;
-        background: radial-gradient(120% 90% at 50% 0%, #261a12, var(--bg));
+        background: var(--bg);
         color: var(--fg);
         font:
           15px/1.5 system-ui,
           -apple-system,
           sans-serif;
       }
+      /* 정적 필름 그레인 — 상시 애니메이션 없이 질감만 얹는다 (배경 위, 콘텐츠 아래) */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        opacity: 0.05;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
       h1 {
         margin: 0;
-        font-size: 23px;
+        font-size: clamp(20px, 4.6vw, 27px);
         font-weight: 800;
         letter-spacing: 0.07em;
         text-transform: uppercase;
+        text-wrap: balance;
         color: var(--fg);
       }
       h1 .brand {
         color: var(--accent);
       }
+      /* 상태 띠 — 패널로 승격해 게임 상태가 한눈에 잡히게 */
       #bar {
         display: flex;
         gap: 14px;
+        row-gap: 4px;
+        flex-wrap: wrap;
         align-items: baseline;
+        justify-content: center;
         min-height: 24px;
+        padding: 7px 16px;
         font-weight: 600;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        box-shadow: var(--shadow-panel);
+      }
+      /* 게임의 목소리 — 상태 문구를 본문보다 한 단계 크게 */
+      #status {
+        font-size: 17px;
+        font-weight: 700;
       }
       #clock {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -95,6 +126,7 @@
         font: inherit;
         font-size: 12px;
         font-weight: 600;
+        font-variant-numeric: tabular-nums;
         cursor: pointer;
         transition:
           border-color 0.15s,
@@ -132,13 +164,30 @@
         display: grid;
         grid-template-columns: repeat(8, 1fr);
         grid-template-rows: repeat(8, 1fr);
+        position: relative;
         width: 100%;
         aspect-ratio: 1;
-        border: 4px solid var(--surface);
-        outline: 1px solid var(--line);
+        /* 존재감 있는 우드 프레임. box-shadow 는 fx.ts 의 dome 키프레임이
+           하드코딩 참조하므로 바꾸지 않는다 — 프레임은 border/outline/::before 로만 */
+        border: 10px solid #362a1d;
+        outline: 1px solid #59462f;
         border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 24px 60px -16px #000d;
+      }
+      /* 보드 안쪽 베벨 + 비네트 — 정적 오버레이. z-index 2 는 아이템 연출(z3)과
+         dome 헤이즈(z5)보다 아래, 일반 칸보다는 위 */
+      #board::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        pointer-events: none;
+        border-radius: 2px;
+        box-shadow:
+          inset 0 0 0 1px #f7e6d21f,
+          inset 0 2px 22px #140a0459,
+          inset 0 -2px 22px #140a0440;
       }
       .sq {
         position: relative;
@@ -163,7 +212,9 @@
         height: 86%;
       }
       .hot {
-        filter: drop-shadow(0 0 calc(var(--h) * 4px) hsl(calc(45 - var(--h) * 15) 100% 55%));
+        filter: drop-shadow(
+          0 0 calc(var(--h) * 4px) hsl(calc(45 - var(--h) * 15) 100% 55%)
+        );
       }
       /* 과열 기물 — 백열 코어 + 잿불 맥동 + 솟는 열기.
          heat 1-3(.hot)은 약한 주황 글로우, 과열은 흰 코어의 강한 맥동으로 구분한다 */
@@ -210,7 +261,7 @@
           transform: scale(1.06);
         }
       }
-      /* 위로 솟는 열기 줄기 — 에어콘 바람(.wind)과 달리 상승한다 */
+      /* 위로 솟는 열기 줄기 — 에어컨 바람(.wind)과 달리 상승한다 */
       .steam {
         position: absolute;
         inset: 0;
@@ -265,13 +316,17 @@
       .taken {
         display: flex;
         align-items: center;
-        gap: 1px;
         height: 28px;
+      }
+      /* 잡힌 기물은 살짝 겹쳐 쌓는다 — 밝은 외곽선(drop-shadow)이 구분을 지킨다 */
+      .taken img + img {
+        margin-left: -7px;
       }
       .taken .who {
         margin-right: 8px;
-        font-size: 12px;
-        font-weight: 600;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
         color: var(--muted);
       }
       .taken img {
@@ -287,14 +342,9 @@
         font-size: 13px;
         color: var(--warm);
       }
-      /* 과열 배지 — 흰 빛을 머금은 열 그라데이션 (기존 파랑 ❄ 배지의 대체) */
+      /* 과열 배지 — 기본 배지보다 짙은 주황 단색 (기존 파랑 ❄ 배지의 대체) */
       .badge.overheat {
-        background: linear-gradient(
-          135deg,
-          rgba(255, 61, 0, 0.5),
-          rgba(255, 122, 26, 0.45) 55%,
-          rgba(255, 208, 138, 0.4)
-        );
+        background: rgba(255, 90, 0, 0.55);
         text-shadow: 0 0 6px rgba(255, 208, 138, 0.45);
         box-shadow: 0 0 8px rgba(255, 90, 0, 0.3);
       }
@@ -314,9 +364,40 @@
       #game-mode.on {
         border-color: var(--cool);
         color: #bfeaff;
-        background: #12242e;
+        background-color: #12242e;
+        background-image: var(--arrow-cool);
       }
-      /* 에어콘 기물 표시 — 후광 + 링 + 바람 + 모서리 아이콘의 조합 */
+      #game-mode.item {
+        border-color: var(--warm);
+        color: #ffe2c4;
+        background-color: #33200e;
+        background-image: var(--arrow-hi);
+      }
+      /* 아이템 버튼 — 내 차례에만 켜지고, 사용하면 소진 표시로 남는다 */
+      #item-w:disabled,
+      #item-b:disabled {
+        opacity: 0.35;
+        cursor: default;
+        border-color: var(--line);
+        background-color: var(--surface);
+      }
+      #item-w.used,
+      #item-b.used {
+        text-decoration: line-through;
+      }
+      /* 조건 불충족 대기(선풍기 — 과열 기물 없음)는 소진과 달리 점선으로 살아 있음을 보인다 */
+      #item-w.wait,
+      #item-b.wait {
+        opacity: 0.6;
+        border-style: dashed;
+      }
+      /* 선풍기 SVG 아이콘 — 이모지 자리 대체 (아이템 버튼/도움말 공용) */
+      .fan-ico {
+        width: 15px;
+        height: 15px;
+        vertical-align: -2px;
+      }
+      /* 에어컨 기물 표시 — 후광 + 링 + 바람 + 모서리 아이콘의 조합 */
       .sq.aircon {
         isolation: isolate;
       }
@@ -330,7 +411,12 @@
         position: absolute;
         inset: 6%;
         border-radius: 50%;
-        background: radial-gradient(circle, #6fd3ff55 0%, #6fd3ff22 45%, transparent 72%);
+        background: radial-gradient(
+          circle,
+          #6fd3ff55 0%,
+          #6fd3ff22 45%,
+          transparent 72%
+        );
         animation: aircon-halo 2.6s ease-in-out infinite;
       }
       /* 사각형을 감싸는 숨쉬는 링 */
@@ -466,11 +552,18 @@
           transform: translateY(-70%);
         }
       }
+      /* 조작반 — 컨트롤을 한 단계 어두운 패널로 묶어 버튼이 떠 보이게 */
       #controls {
         display: flex;
         gap: 8px;
         flex-wrap: wrap;
         justify-content: center;
+        width: min(92vw, 560px);
+        padding: 10px;
+        background: #1c140e;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        box-shadow: var(--shadow-panel);
       }
       /* 레이아웃 스테이지: 좁은 화면에서는 세로로 쌓고 중앙 정렬 */
       #stage {
@@ -495,17 +588,31 @@
         padding: 7px 12px;
         border-radius: 8px;
         border: 1px solid var(--line);
-        background: var(--surface);
+        background-color: var(--surface);
         color: var(--fg);
         cursor: pointer;
         transition:
           border-color 0.15s,
-          background-color 0.15s;
+          background-color 0.15s,
+          box-shadow 0.15s;
+      }
+      /* 네이티브 select 화살표를 테마 톤의 커스텀 셰브런으로 교체 */
+      select {
+        -webkit-appearance: none;
+        appearance: none;
+        padding-right: 28px;
+        background-image: var(--arrow);
+        background-repeat: no-repeat;
+        background-position: right 10px center;
       }
       button:hover,
       select:hover {
         border-color: var(--accent);
-        background: var(--surface-hi);
+        background-color: var(--surface-hi);
+      }
+      select:hover,
+      select:focus-visible {
+        background-image: var(--arrow-hi);
       }
       button:active {
         transform: translateY(1px);
@@ -516,33 +623,48 @@
         outline: 2px solid var(--accent);
         outline-offset: 2px;
       }
+      /* 유일한 프라이머리 액션 — 액센트 단색 + 은은한 CTA 글로우(장식 아닌 위계 목적) */
       #new-game {
         background: var(--accent);
         border-color: var(--accent);
         color: #201005;
         font-weight: 700;
+        box-shadow: 0 2px 12px -4px #ff7a1a66;
       }
       #new-game:hover {
         background: #ff8c3a;
         border-color: #ff8c3a;
+        box-shadow: 0 3px 16px -4px #ff7a1a99;
       }
       #undo:disabled {
         opacity: 0.35;
         cursor: default;
         border-color: var(--line);
-        background: var(--surface);
+        background-color: var(--surface);
       }
       #moves-panel {
         width: min(92vw, 560px);
         background: var(--surface);
         border: 1px solid var(--line);
         border-radius: 12px;
-        padding: 8px 16px;
+        padding: 12px 16px;
+        box-shadow: var(--shadow-panel);
       }
-      #moves-panel summary {
+      /* 패널 헤더 공통 — 웜 톤, 호버에 액센트, 마커는 뮤트로 가라앉힌다 */
+      #moves-panel summary,
+      #help summary {
         cursor: pointer;
         font-weight: 600;
         color: var(--warm);
+        transition: color 0.15s;
+      }
+      #moves-panel summary:hover,
+      #help summary:hover {
+        color: var(--accent);
+      }
+      #moves-panel summary::marker,
+      #help summary::marker {
+        color: var(--muted);
       }
       #moves:empty::before {
         content: "아직 둔 수가 없습니다";
@@ -552,10 +674,13 @@
         margin-top: 6px;
         max-height: 110px;
         overflow-y: auto;
+        padding-right: 8px;
         font-size: 13px;
         line-height: 1.9;
         font-variant-numeric: tabular-nums;
         color: #d8cfc5;
+        scrollbar-width: thin;
+        scrollbar-color: var(--line) transparent;
       }
       #promo {
         position: fixed;
@@ -563,6 +688,8 @@
         display: grid;
         place-items: center;
         background: #000a;
+        -webkit-backdrop-filter: blur(4px);
+        backdrop-filter: blur(4px);
         z-index: 10;
       }
       #promo[hidden] {
@@ -599,18 +726,22 @@
         border: 1px solid var(--line);
         border-radius: 12px;
         padding: 12px 16px;
+        box-shadow: var(--shadow-panel);
       }
-      #help summary {
-        cursor: pointer;
-        font-weight: 600;
-        color: var(--warm);
-      }
+      /* summary 스타일은 #moves-panel summary 와 공통 규칙으로 관리 */
       #help ul {
         margin: 10px 0 0;
         padding-left: 18px;
       }
       #help li {
         margin-bottom: 7px;
+      }
+      #help li::marker {
+        color: var(--muted);
+      }
+      /* 아이템 목록 같은 하위 목록은 본문과 살짝 구분되게 */
+      #help ul ul {
+        margin-top: 6px;
       }
       #help b {
         color: #ffd6ac;
@@ -619,20 +750,64 @@
         margin: 10px 0 0;
         padding-top: 8px;
         border-top: 1px solid var(--line);
-        opacity: 0.75;
+        color: var(--muted);
       }
       #build-info {
         margin-top: 4px;
         font-size: 12px;
         opacity: 0.45;
       }
+      /* 좁은 화면: 여백과 컨트롤 밀도를 한 단계 줄여 보드에 공간을 양보한다 */
+      @media (max-width: 600px) {
+        body {
+          padding: 18px 10px 32px;
+          gap: 13px;
+        }
+        #stage,
+        #left,
+        #right {
+          gap: 12px;
+        }
+        #controls {
+          gap: 6px;
+          padding: 8px;
+        }
+        #board {
+          border-width: 7px;
+        }
+        button,
+        select {
+          padding: 6px 10px;
+        }
+        select {
+          padding-right: 26px;
+          background-position: right 8px center;
+        }
+        #moves-panel,
+        #help {
+          padding-left: 13px;
+          padding-right: 13px;
+        }
+      }
       /* 와이드(PC) 화면: 왼쪽에 보드, 오른쪽에 컨트롤/수 기록/규칙 2단 레이아웃.
-         왼쪽 칸은 보드(min(88vw,560px)) + 랭크 열 20px + 갭 2px = 582px,
-         오른쪽 칸은 남은 공간을 채우되 최대 560px */
+         보드 캡은 세로 공간 기준으로 상향(--board-max) — 보드 위아래 크롬
+         (h1/상태 띠/트레이/파일행/여백 ≈ 257px, Bold 라운드에서 재실측)을 뺀
+         높이까지 키우되 560~760px 로 제한해
+         낮은 해상도에서는 기존과 동일하고 스크롤도 생기지 않는다.
+         왼쪽 칸은 보드 + 랭크 열 20px + 갭 2px, 오른쪽 칸은 최대 560px */
       @media (min-width: 1000px) {
+        :root {
+          --board-max: clamp(560px, 100dvh - 270px, 760px);
+        }
+        #board-wrap {
+          grid-template-columns: 20px minmax(0, var(--board-max));
+        }
         #stage {
           display: grid;
-          grid-template-columns: minmax(0, 582px) minmax(0, 560px);
+          grid-template-columns: minmax(
+              0,
+              calc(var(--board-max) + 22px)
+            ) minmax(0, 560px);
           justify-content: center;
           align-items: start;
           gap: 24px;
@@ -661,6 +836,15 @@
         #theme {
           grid-column: span 2;
         }
+        /* 3행(아이템 모드): 백/흑 버튼이 반씩, vs AI 는 백 버튼만 보이니 한 줄을 다 쓴다 */
+        #item-w,
+        #item-b {
+          grid-column: span 2;
+        }
+        #item-w:has(+ #item-b[hidden]) {
+          grid-column: 1 / -1;
+        }
+        #controls,
         #moves-panel,
         #help {
           width: 100%;
@@ -677,22 +861,26 @@
     <div id="stage">
       <div id="left">
         <div id="bar">
-          <span id="status">백 차례</span>
+          <span id="status" aria-live="polite">백 차례</span>
           <span id="clock"></span>
-          <button type="button" id="record" title="클릭하면 전적을 지웁니다"></button>
+          <button
+            type="button"
+            id="record"
+            title="클릭하면 전적을 지웁니다"
+          ></button>
         </div>
         <div id="board-wrap">
           <div></div>
           <div class="taken" id="taken-top"></div>
           <div id="ranks">
-            <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span
-            ><span>2</span><span>1</span>
+            <span>8</span><span>7</span><span>6</span><span>5</span
+            ><span>4</span><span>3</span><span>2</span><span>1</span>
           </div>
           <div id="board"></div>
           <div></div>
           <div id="files">
-            <span>a</span><span>b</span><span>c</span><span>d</span><span>e</span><span>f</span
-            ><span>g</span><span>h</span>
+            <span>a</span><span>b</span><span>c</span><span>d</span
+            ><span>e</span><span>f</span><span>g</span><span>h</span>
           </div>
           <div></div>
           <div class="taken" id="taken-bottom"></div>
@@ -700,21 +888,29 @@
       </div>
       <div id="right">
         <div id="controls">
-          <button type="button" id="new-game" title="현재 모드로 새 게임">새 게임</button>
+          <button type="button" id="new-game" title="현재 모드로 새 게임">
+            새 게임
+          </button>
           <select id="turn" title="턴 제한 시간">
             <option value="30">30초</option>
             <option value="60">1분</option>
             <option value="180">3분</option>
             <option value="300">5분</option>
           </select>
-          <button type="button" id="game-mode" title="게임 모드 전환">🔥 히트</button>
-          <select id="mode" title="게임 모드와 AI 난이도">
+          <select id="game-mode" title="게임 모드">
+            <option value="heat">🔥 히트</option>
+            <option value="aircon">❄️ 에어컨</option>
+            <option value="item">🎁 아이템</option>
+          </select>
+          <select id="mode" title="상대와 AI 난이도">
             <option value="ai1">vs AI(쉬움)</option>
             <option value="ai2" selected>vs AI(보통)</option>
             <option value="ai3">vs AI(어려움)</option>
             <option value="two">2인 플레이</option>
           </select>
-          <button type="button" id="undo" title="수 되돌리기" disabled>↩ 되돌리기</button>
+          <button type="button" id="undo" title="수 되돌리기" disabled>
+            ↩ 되돌리기
+          </button>
           <select id="theme" title="체스판 색상">
             <option value="wood">다크 우드</option>
             <option value="purple">보라</option>
@@ -724,6 +920,8 @@
             <option value="green">그린</option>
           </select>
           <button type="button" id="sound" title="효과음 끄기">🔊</button>
+          <button type="button" id="item-w" hidden></button>
+          <button type="button" id="item-b" hidden></button>
         </div>
         <details id="moves-panel" open>
           <summary>수 기록</summary>
@@ -732,34 +930,59 @@
         <details id="help" open>
           <summary>규칙: 체스와 같지만, 같은 기물을 계속 굴리면 뻗는다</summary>
           <ul>
-            <li>
-              내 차례에 수를 두면, <b>움직인 기물</b>은 열이 오른다 <span class="badge">1</span> →
-              <span class="badge">2</span> →
+            <li data-modes="heat item">
+              내 차례에 수를 두면, <b>움직인 기물</b>은 열이 오른다
+              <span class="badge">1</span> → <span class="badge">2</span> →
               <span class="badge">3</span>
             </li>
-            <li>
-              같은 순간, 이번에 <b>안 움직인 내 기물</b>은 열이 1씩 식는다. 상대가 둘 때는
-              <b>식지 않는다</b>. 내 차례에만 정산된다
+            <li data-modes="heat item">
+              같은 순간, 이번에 <b>안 움직인 내 기물</b>은 열이 1씩 식는다.
+              상대가 둘 때는 <b>식지 않는다</b>. 내 차례에만 정산된다
             </li>
-            <li>
-              열이 <b>4</b>에 닿으면 과열 <span class="badge overheat">🔥2</span>. 그 기물은
+            <li data-modes="heat item">
+              열이 <b>4</b>에 닿으면 과열
+              <span class="badge overheat">🔥2</span>. 그 기물은
               <b>내 차례 2번</b> 동안 못 움직인다. 풀리면 열은 0부터 다시
             </li>
-            <li><b>킹은 달아오르지 않는다</b>. 체크를 못 피하면 게임이 막히니까</li>
-            <li>
-              움직일 기물이 하나도 없으면 그 턴은 그냥 넘어간다. 그때 체크를 받고 있으면
+            <li data-modes="heat item">
+              <b>킹은 달아오르지 않는다</b>. 체크를 못 피하면 게임이 막히니까
+            </li>
+            <li data-modes="heat item">
+              움직일 기물이 하나도 없으면 그 턴은 그냥 넘어간다. 그때 체크를
+              받고 있으면
               <b>히트메이트</b>로 패배
             </li>
             <li>한 턴은 <b id="turn-label">30초</b>. 넘기면 시간패</li>
-            <li>
-              🌬️ <b>에어콘 체스</b>: 시작할 때 내 기물 하나(킹 제외)를 몰래 에어콘으로 지정한다.
-              상대에겐 안 보인다. 그 기물이 잡히면 <b>즉시 패배</b>. 에어콘 모드는
-              <b>히트 규칙을 쓰지 않는다</b>. 열 표시도 과열 잠금도 없다
+            <li data-modes="aircon">
+              ❄️ <b>에어컨 체스</b>: 시작할 때 내 기물 하나(킹 제외)를 몰래
+              에어컨으로 지정한다. 상대에겐 안 보인다. 그 기물이 잡히면
+              <b>즉시 패배</b>. 에어컨 모드는 <b>히트 규칙을 쓰지 않는다</b>. 열
+              표시도 과열 잠금도 없다
+            </li>
+            <li data-modes="item">
+              🎁 <b>아이템 모드</b>: 히트 규칙 그대로에 아이템이 더해진다.
+              시작할 때 각자 <b>아이템 1개</b>를 랜덤으로 받고, 자기 차례에
+              버튼으로 <b>1회</b> 발동한다. 발동해도 턴은 소모하지 않는다
+              <ul>
+                <li>
+                  <img src="./src/fan.svg" alt="" class="fan-ico" />
+                  <b>선풍기</b> (80%): 바람으로 내
+                  <b>과열 기물을 전부 해제</b>한다
+                </li>
+                <li>
+                  ☕ <b>뜨거운 아메리카노</b> (15%): 상대 기물 하나에 쏟는다.
+                  랜덤 대상이 <b>2턴 잠김</b>
+                </li>
+                <li>
+                  ♨️ <b>이중열돔</b> (5%): 게임 끝까지 <b>양쪽 모두</b> 기물이
+                  <b>2턴 연속</b> 움직이면 과열된다 (임계값 4→2)
+                </li>
+              </ul>
             </li>
           </ul>
-          <p class="tip">
-            요령: 강한 기물 하나로 몰아붙이면 그 기물이 먼저 잠긴다. 여러 기물을 번갈아 쓰고, 상대의
-            핵심 기물이 뜨거워졌을 때 몰아치면 된다.
+          <p class="tip" data-modes="heat item">
+            요령: 강한 기물 하나로 몰아붙이면 그 기물이 먼저 잠긴다. 여러 기물을
+            번갈아 쓰고, 상대의 핵심 기물이 뜨거워졌을 때 몰아치면 된다.
           </p>
         </details>
         <footer id="build-info"></footer>

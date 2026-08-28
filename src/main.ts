@@ -1,14 +1,21 @@
 import { Chess, type Move, type Square } from "chess.js";
+import fanIcon from "./fan.svg";
+import { coffeeFx, domeFx, fanFx } from "./fx";
 import {
 	airconAfter,
 	applyHeat,
 	bestMove,
 	capturedSquare,
 	type Heat,
+	hasCoffeeTarget,
+	type Item,
 	legalMoves,
 	OVERHEAT,
 	pass,
+	rollItem,
 	status,
+	useCoffee,
+	useFan,
 } from "./game";
 import bB from "./piece/bB.svg";
 import bK from "./piece/bK.svg";
@@ -88,6 +95,8 @@ const soundEl = document.getElementById("sound") as HTMLButtonElement;
 const movesEl = document.getElementById("moves")!;
 const promoEl = document.getElementById("promo")!;
 const promoBoxEl = document.getElementById("promo-box")!;
+const itemWEl = document.getElementById("item-w") as HTMLButtonElement;
+const itemBEl = document.getElementById("item-b") as HTMLButtonElement;
 
 let chess = new Chess();
 let heat: Heat = {};
@@ -96,7 +105,17 @@ let busy = false;
 let airconOn = false;
 let airconSq: Record<"w" | "b", string | null> = { w: null, b: null };
 let picking: "w" | "b" | null = null;
+// 아이템 모드 — 히트 규칙 + 아이템. 에어컨과 동시에 켜지지 않는다
+let itemOn = false;
+// 시작 시 부여된 아이템(1회용) — 소진 표시를 위해 사용 후에도 종류는 남긴다
+let items: Record<"w" | "b", Item | null> = { w: null, b: null };
+let itemUsed: Record<"w" | "b", boolean> = { w: false, b: false };
+// 이중열돔 — 발동되면 게임 끝까지 과열 임계값 4→2 (모든 기물, 양쪽 모두)
+let domeActive = false;
+const DOME_OVERHEAT = 2;
+const overheatLimit = () => (domeActive ? DOME_OVERHEAT : OVERHEAT);
 let audio: AudioContext | undefined;
+let master: GainNode | undefined;
 let timer: ReturnType<typeof setInterval> | undefined;
 let pending: ReturnType<typeof setTimeout> | undefined;
 let left = 0;
@@ -113,6 +132,9 @@ type Snap = {
 	lost: Record<"w" | "b", string[]>;
 	aircon: Record<"w" | "b", string | null>;
 	san: string[];
+	items: Record<"w" | "b", Item | null>;
+	used: Record<"w" | "b", boolean>;
+	dome: boolean;
 };
 let history: Snap[] = [];
 let pendingPromo: { from: string; to: string } | null = null;
@@ -144,6 +166,15 @@ function finish(result: "w" | "l" | "d") {
 function thud(freq: number, dur: number, type: OscillatorType, gain = 0.3) {
 	if (!soundOn) return;
 	audio ??= new AudioContext();
+	// 첫 소리가 사용자 제스처 밖(초읽기 틱 등)에서 나면 suspended 무음이 된다
+	if (audio.state === "suspended") void audio.resume();
+	// 저역 위주 음이 노트북 스피커에서 작게 들려 마스터 게인으로 키운다.
+	// 개별 게인 합이 겹쳐도 ~0.4 라 2배여도 클리핑(1.0)에 닿지 않는다
+	if (!master) {
+		master = audio.createGain();
+		master.gain.value = 2;
+		master.connect(audio.destination);
+	}
 	const t = audio.currentTime;
 	const osc = audio.createOscillator();
 	const amp = audio.createGain();
@@ -156,7 +187,7 @@ function thud(freq: number, dur: number, type: OscillatorType, gain = 0.3) {
 	osc.frequency.exponentialRampToValueAtTime(freq * 0.45, t + dur);
 	amp.gain.setValueAtTime(gain, t);
 	amp.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-	osc.connect(lp).connect(amp).connect(audio.destination);
+	osc.connect(lp).connect(amp).connect(master);
 	osc.start(t);
 	osc.stop(t + dur);
 }
@@ -273,9 +304,124 @@ function updateUndo() {
 	undoEl.disabled = busy || picking !== null || history.length === 0;
 }
 
+const ITEM_INFO: Record<Item, { label: string; desc: string }> = {
+	// 선풍기 아이콘은 이모지 대신 회전 팬 SVG(fan.svg) — itemLabel() 이 조립한다
+	fan: { label: "선풍기", desc: "내 과열 기물을 전부 해제" },
+	coffee: {
+		label: "☕ 아메리카노",
+		desc: "상대 기물 하나를 랜덤으로 2턴 잠금",
+	},
+	dome: {
+		label: "♨️ 이중열돔",
+		desc: "게임 끝까지 과열 임계값 4→2 (양쪽 모두)",
+	},
+};
+
+const hasLocked = (color: "w" | "b") =>
+	Object.values(heat).some((c) => c.color === color && c.lock > 0);
+
+// 버튼용 라벨 조각 — 선풍기만 SVG 아이콘 + 텍스트, 나머지는 라벨의 이모지 그대로
+function itemLabel(item: Item, suffix = ""): (Node | string)[] {
+	if (item !== "fan") return [`${ITEM_INFO[item].label}${suffix}`];
+	const ico = document.createElement("img");
+	ico.src = fanIcon;
+	ico.alt = "";
+	ico.className = "fan-ico";
+	return [ico, ` ${ITEM_INFO[item].label}${suffix}`];
+}
+
+// 아이템 버튼 — vs AI 는 사람(백) 것만 보이고, 2인은 현재 차례인 쪽만 활성화
+function drawItems() {
+	const ai = modeEl.value.startsWith("ai");
+	for (const color of ["w", "b"] as const) {
+		const btn = color === "w" ? itemWEl : itemBEl;
+		const item = items[color];
+		if (!itemOn || !item || (ai && color === "b")) {
+			btn.hidden = true;
+			continue;
+		}
+		btn.hidden = false;
+		const used = itemUsed[color];
+		// 소진(✓)/조건 불충족 대기(⏳)/사용 가능을 구분해 "못 받은 것"으로 오인하지 않게 한다
+		const waiting =
+			!used &&
+			(item === "fan"
+				? !hasLocked(color)
+				: item === "coffee" &&
+					!hasCoffeeTarget(heat, chess, color === "w" ? "b" : "w"));
+		btn.replaceChildren(
+			`${color === "w" ? "백" : "흑"} `,
+			...itemLabel(item, used ? " ✓" : waiting ? " ⏳" : ""),
+		);
+		btn.title = used
+			? "이미 사용한 아이템"
+			: waiting
+				? item === "fan"
+					? "과열 기물이 생기면 사용할 수 있다"
+					: "잠글 상대 기물이 생기면 사용할 수 있다"
+				: ITEM_INFO[item].desc;
+		btn.classList.toggle("used", used);
+		btn.classList.toggle("wait", waiting);
+		btn.disabled = used || waiting || busy || chess.turn() !== color;
+	}
+}
+
+// 아이템 발동 — 성공하면 true. 턴을 소모하지 않는다 (발동 후 그대로 수를 둔다)
+function activateItem(color: "w" | "b"): boolean {
+	const item = items[color];
+	if (!itemOn || !item || itemUsed[color] || chess.turn() !== color)
+		return false;
+	if (item === "fan" && !hasLocked(color)) return false;
+	// 커피도 대상 없이 쓰면 헛소모 — 발동 전에 검사해 아이템을 지킨다
+	if (
+		item === "coffee" &&
+		!hasCoffeeTarget(heat, chess, color === "w" ? "b" : "w")
+	)
+		return false;
+	itemUsed[color] = true;
+	// render 가 칸을 새로 그린 뒤 연출을 얹어야 replaceChildren 에 지워지지 않는다
+	if (item === "fan") {
+		const r = useFan(heat, color);
+		heat = r.heat;
+		render();
+		fanFx(boardEl, r.squares);
+	} else if (item === "coffee") {
+		const r = useCoffee(heat, chess, color === "w" ? "b" : "w");
+		heat = r.heat;
+		render();
+		if (r.square) coffeeFx(boardEl, r.square);
+	} else {
+		domeActive = true;
+		// 발동 순간 새 임계값(2) 이상인 잔여 열은 1 로 눌러 배지 모순을 없앤다
+		// (소급 잠금보다 온화). heat 는 copy-on-write — 스냅샷이 참조 공유한다
+		if (Object.values(heat).some((c) => !c.lock && c.heat >= DOME_OVERHEAT)) {
+			const next = { ...heat };
+			for (const [sq, c] of Object.entries(next))
+				if (!c.lock && c.heat >= DOME_OVERHEAT) next[sq] = { ...c, heat: 1 };
+			heat = next;
+		}
+		render();
+		domeFx(boardEl);
+	}
+	statusEl.textContent = `${color === "w" ? "백" : "흑"} ${ITEM_INFO[item].label} 발동!`;
+	return true;
+}
+
+// AI(흑) 아이템 휴리스틱 — 선풍기: 잠긴 기물이 생기면 즉시,
+// 아메리카노: 자기 6수째부터, 이중열돔: 자기 4수째부터 첫 차례에 사용
+function aiWantsItem(): boolean {
+	const item = items.b;
+	if (!item || itemUsed.b) return false;
+	if (item === "fan") return hasLocked("b");
+	// FEN 풀무브 번호 = 흑이 이제 두는 n수째
+	const n = Number(chess.fen().split(" ")[5]);
+	return n >= (item === "coffee" ? 6 : 4);
+}
+
 function render() {
 	drawMoves();
 	updateUndo();
+	drawItems();
 	renderTaken();
 	const board = chess.board();
 	const targets = sel
@@ -303,13 +449,13 @@ function render() {
 						cell?.lock
 							? `, 과열 ${cell.lock}턴`
 							: cell?.heat
-								? `, heat ${cell.heat}`
+								? `, 열 ${cell.heat}`
 								: ""
 					}`;
 					if (cell?.lock) {
 						pc.classList.add("overheat");
 						el.classList.add("overheat");
-						// 솟아오르는 열기 줄기 — 에어콘의 바람(.wind)과 구분된다
+						// 솟아오르는 열기 줄기 — 에어컨의 바람(.wind)과 구분된다
 						const steam = document.createElement("span");
 						steam.className = "steam";
 						el.append(steam);
@@ -327,7 +473,7 @@ function render() {
 						el.append(badge);
 					}
 				}
-				// 내 에어콘 기물 표시 — vs AI 에서만. 2인 플레이는 화면을 같이 보므로 숨긴다
+				// 내 에어컨 기물 표시 — vs AI 에서만. 2인 플레이는 화면을 같이 보므로 숨긴다
 				if (sq === airconSq.w && modeEl.value.startsWith("ai")) {
 					el.classList.add("aircon");
 					// 바람 줄기 두 레이어 (두 번째는 더 큰 바람이 드물게)
@@ -340,7 +486,7 @@ function render() {
 					// 우하단 고정 아이콘 — 열 배지(우상단)와 겹치지 않는다
 					const ico = document.createElement("span");
 					ico.className = "aircon-ico";
-					ico.textContent = "🌬️";
+					ico.textContent = "❄️";
 					el.append(ico);
 				}
 				return el;
@@ -364,14 +510,17 @@ function doMove(
 			lost: { w: [...lostPieces.w], b: [...lostPieces.b] },
 			aircon: { ...airconSq },
 			san: [...sanMoves],
+			items: { ...items },
+			used: { ...itemUsed },
+			dome: domeActive,
 		});
 	const move = chess.move({ from, to, promotion });
 	sanMoves.push(move.san);
 	if (move.captured)
 		lostPieces[move.color === "w" ? "b" : "w"].push(move.captured);
-	// 과열 판정은 잠금 유무가 아니라 이동 전 열로 본다 (에어콘 모드는 히트 규칙 없음)
-	const overheated = (heat[from]?.heat ?? 0) + 1 >= OVERHEAT;
-	heat = applyHeat(heat, move, airconOn);
+	// 과열 판정은 잠금 유무가 아니라 이동 전 열로 본다 (에어컨 모드는 히트 규칙 없음)
+	const overheated = (heat[from]?.heat ?? 0) + 1 >= overheatLimit();
+	heat = applyHeat(heat, move, airconOn, overheatLimit());
 	sel = null;
 	airconSq[move.color] = airconAfter(move, airconSq[move.color]);
 	const foe = move.color === "w" ? "b" : "w";
@@ -383,7 +532,7 @@ function doMove(
 		busy = true;
 		stopClock();
 		clearTimeout(pending);
-		statusEl.textContent = `❄ 에어콘 기물 격추, ${move.color === "w" ? "백" : "흑"} 승`;
+		statusEl.textContent = `❄️ 에어컨 기물 격추, ${move.color === "w" ? "백" : "흑"} 승`;
 		finish(move.color === "w" ? "w" : "l");
 		thud(42, 1.2, "sawtooth", 0.32);
 		return;
@@ -391,7 +540,9 @@ function doMove(
 	later(step, 20);
 }
 
-const AI_DEPTH: Record<string, number> = { ai1: 1, ai2: 2, ai3: 4 };
+// ai3 는 1.2초 시간 제한 iterative deepening — 그 안에 닿는 깊이까지 탐색
+const AI_DEPTH: Record<string, number> = { ai1: 1, ai2: 2, ai3: 12 };
+const AI_TIME: Record<string, number> = { ai3: 1200 };
 
 function step() {
 	if (busy) return;
@@ -405,7 +556,33 @@ function step() {
 		finish(draw ? "d" : chess.turn() === "w" ? "l" : "w");
 		return;
 	}
+	// AI(흑) 아이템 자동 사용 — 패스 판정보다 먼저 (전부 과열이어도 선풍기로 풀 수 있다).
+	// 연출이 보이게 잠깐 멈춘 뒤 이어서 수를 둔다
+	if (
+		modeEl.value.startsWith("ai") &&
+		chess.turn() === "b" &&
+		aiWantsItem() &&
+		activateItem("b")
+	) {
+		busy = true;
+		stopClock();
+		later(() => {
+			busy = false;
+			step();
+		}, 900);
+		return;
+	}
 	if (st.mustPass) {
+		// 사람 차례에 선풍기로 풀 수 있으면 자동 패스를 보류하고 입력을 기다린다.
+		// 시계는 그대로 흘러 시간패 압박은 유지된다 (AI 는 위에서 이미 자동 사용)
+		const side = chess.turn();
+		const human = !modeEl.value.startsWith("ai") || side === "w";
+		if (human && items[side] === "fan" && !itemUsed[side] && hasLocked(side)) {
+			statusEl.textContent =
+				"움직일 기물이 없습니다 — 선풍기를 쓰거나, 시간이 다 되면 시간패";
+			startClock();
+			return;
+		}
 		heat = pass(chess, heat);
 		sanMoves.push("(패스)");
 		render();
@@ -428,6 +605,8 @@ function step() {
 				AI_DEPTH[modeEl.value] ?? 3,
 				airconOn,
 				airconOn ? airconSq.b : null,
+				AI_TIME[modeEl.value] ?? 0,
+				overheatLimit(),
 			);
 			busy = false;
 			if (m)
@@ -443,10 +622,10 @@ function step() {
 
 const pickText = () =>
 	modeEl.value.startsWith("ai")
-		? "에어콘 기물을 클릭해 지정하세요 (킹 제외)"
-		: `${picking === "w" ? "백" : "흑"}: 에어콘 기물 몰래 클릭 (킹 제외, 상대는 눈 감기)`;
+		? "에어컨 기물을 클릭해 지정하세요 (킹 제외)"
+		: `${picking === "w" ? "백" : "흑"}: 에어컨 기물 몰래 클릭 (킹 제외, 상대는 눈 감기)`;
 
-// 킹은 잡히기 전에 메이트가 나므로 에어콘으로 고르면 규칙이 무력화된다
+// 킹은 잡히기 전에 메이트가 나므로 에어컨으로 고르면 규칙이 무력화된다
 function randomAircon(color: "w" | "b") {
 	const own: string[] = [];
 	chess.board().forEach((row, r) => {
@@ -531,29 +710,76 @@ function newGame() {
 	lostPieces = { w: [], b: [] };
 	airconSq = { w: null, b: null };
 	picking = airconOn ? "w" : null;
+	// 아이템 모드면 시작 시 양쪽에 아이템 1개씩 랜덤 부여
+	items = itemOn ? { w: rollItem(), b: rollItem() } : { w: null, b: null };
+	itemUsed = { w: false, b: false };
+	domeActive = false;
+	boardEl.classList.remove("dome-on");
 	sanMoves = [];
 	history = [];
 	stopClock();
 	render();
 	if (picking) statusEl.textContent = pickText();
-	else step();
+	else {
+		step();
+		// 받은 아이템 안내 — vs AI 에서 흑(AI) 아이템은 비밀 유지
+		if (itemOn && items.w) {
+			const foe =
+				!modeEl.value.startsWith("ai") && items.b
+					? ` · 흑 ${ITEM_INFO[items.b].label}`
+					: "";
+			statusEl.textContent += ` — 🎁 백 ${ITEM_INFO[items.w].label}${foe}`;
+		}
+	}
 }
 
 // 진행 중인 게임을 버리는 동작(새 게임/모드 전환)에 확인을 받는다
 const confirmDiscard = () =>
 	sanMoves.length === 0 || confirm("진행 중인 게임을 버리고 새로 시작할까요?");
 
-modeEl.addEventListener("change", () => !busy && !picking && step());
+modeEl.addEventListener("change", () => {
+	// vs AI ↔ 2인 전환 시 아이템 버튼/에어컨 표시가 달라진다
+	render();
+	if (!busy && !picking) step();
+});
 
-// 게임 모드 토글 — 라벨은 현재 모드를 보여주고, 클릭하면 모드를 바꾸며 새 게임을 시작한다
-const gameModeEl = document.getElementById("game-mode")!;
+// 아이템 버튼 — 자기 차례 & busy 아닐 때만 발동 (세부 조건은 activateItem 이 확인)
+itemWEl.addEventListener("click", () => {
+	if (!busy && !picking) activateItem("w");
+});
+itemBEl.addEventListener("click", () => {
+	if (!busy && !picking) activateItem("b");
+});
+
+// 게임 모드 셀렉트 — 🔥 히트 / ❄️ 에어컨 / 🎁 아이템. 에어컨과 아이템은 동시에 켜지지 않는다
+const gameModeEl = document.getElementById("game-mode") as HTMLSelectElement;
+const gameModeValue = () => (airconOn ? "aircon" : itemOn ? "item" : "heat");
+const helpEl = document.getElementById("help")!;
+const helpSummaryEl = helpEl.querySelector("summary")!;
+const HELP_SUMMARY: Record<string, string> = {
+	heat: "규칙: 체스와 같지만, 같은 기물을 계속 굴리면 뻗는다",
+	aircon: "규칙: 체스와 같지만, 비밀 에어컨 기물이 잡히면 진다",
+	item: "규칙: 히트 규칙 그대로, 아이템 한 방이 더해진다",
+};
 function drawGameMode() {
-	gameModeEl.textContent = airconOn ? "🌬️ 에어콘" : "🔥 히트";
+	gameModeEl.value = gameModeValue();
 	gameModeEl.classList.toggle("on", airconOn);
+	gameModeEl.classList.toggle("item", itemOn);
+	// 현재 모드의 설명만 보인다 — data-modes 없는 항목은 공통(항상 표시)
+	const mode = gameModeValue();
+	helpSummaryEl.textContent = HELP_SUMMARY[mode]!;
+	helpEl.querySelectorAll<HTMLElement>("[data-modes]").forEach((el) => {
+		el.hidden = !el.dataset.modes!.split(" ").includes(mode);
+	});
 }
-gameModeEl.addEventListener("click", () => {
-	if (!confirmDiscard()) return;
-	airconOn = !airconOn;
+gameModeEl.addEventListener("change", () => {
+	// 취소하면 셀렉트 값을 현재 모드로 되돌리고 아무 것도 하지 않는다
+	if (!confirmDiscard()) {
+		gameModeEl.value = gameModeValue();
+		return;
+	}
+	airconOn = gameModeEl.value === "aircon";
+	itemOn = gameModeEl.value === "item";
 	drawGameMode();
 	newGame();
 });
@@ -574,6 +800,10 @@ undoEl.addEventListener("click", () => {
 	heat = snap.heat;
 	lostPieces = { w: [...snap.lost.w], b: [...snap.lost.b] };
 	airconSq = { ...snap.aircon };
+	items = { ...snap.items };
+	itemUsed = { ...snap.used };
+	domeActive = snap.dome;
+	boardEl.classList.toggle("dome-on", domeActive);
 	sanMoves = [...snap.san];
 	sel = null;
 	busy = false;
@@ -617,7 +847,8 @@ themeEl.addEventListener("change", () => {
 
 drawRecord();
 drawGameMode();
-render();
+// 초기 로드도 newGame() 경유 — 어떤 모드로 시작해도 아이템 부여가 누락되지 않는다
+newGame();
 
 const buildInfoEl = document.getElementById("build-info");
 if (buildInfoEl) {
@@ -630,4 +861,3 @@ if (buildInfoEl) {
 			: new Date().toISOString().slice(0, 10);
 	buildInfoEl.textContent = `${version} · ${commit} · ${time}`;
 }
-step();

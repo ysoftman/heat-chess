@@ -6,9 +6,15 @@ import {
 	bestMove,
 	capturedSquare,
 	type Heat,
+	hasCoffeeTarget,
+	isLocked,
+	LOCK_TURNS,
 	legalMoves,
 	pass,
+	rollItem,
 	status,
+	useCoffee,
+	useFan,
 } from "./game";
 
 function play(sans: string[]) {
@@ -153,4 +159,130 @@ test("에어콘 인식이 있으면 AI 는 퀸을 포기하고도 에어콘 기�
 	const m = bestMove(new Chess(AIRCON_TRAP), {}, 2, false, "a7")!;
 	expect(m.from).toBe("a7"); // axb6 — 비숍을 잡아 폰을 살린다
 	expect(m.to).toBe("b6");
+});
+
+// AIRCON_TRAP 의 색·랭크 미러 — 흑 비숍 b3 이 백 에어컨 폰(a2)을 위협,
+// 백 나이트 e7 은 흑 퀸(f5)을 먹을 수 있다
+const AIRCON_TRAP_W = "7k/4N3/8/5q2/8/1b6/P7/7K w - - 0 1";
+
+test("에어컨 인식은 색에 중립이다 — 백 에어컨도 지킨다", () => {
+	const m = bestMove(new Chess(AIRCON_TRAP_W), {}, 2, false, "a2")!;
+	expect(m.from).toBe("a2"); // axb3 — 퀸 대신 에어컨 폰을 살린다
+	expect(m.to).toBe("b3");
+});
+
+test("bestMove 는 시간 예산을 크게 넘기지 않고 보드를 복원한다", () => {
+	const chess = new Chess(
+		"r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
+	);
+	const fen = chess.fen();
+	const t0 = performance.now();
+	const m = bestMove(chess, {}, 10, false, null, 300);
+	const dt = performance.now() - t0;
+	expect(dt).toBeLessThan(600); // 예산 300ms + CI 지터 여유 마진
+	expect(m).not.toBeNull();
+	expect(chess.fen()).toBe(fen); // ABORT 후에도 undo 체인이 원상복원한다
+	expect(chess.moves({ verbose: true }).some((x) => x.san === m!.san)).toBe(
+		true,
+	);
+});
+
+test("아이템 추첨 경계 — fan 80% / coffee 15% / dome 5%", () => {
+	expect(rollItem(0.0)).toBe("fan");
+	expect(rollItem(0.79)).toBe("fan");
+	expect(rollItem(0.8)).toBe("coffee");
+	expect(rollItem(0.94)).toBe("coffee");
+	expect(rollItem(0.95)).toBe("dome");
+	expect(rollItem(0.99)).toBe("dome");
+});
+
+test("선풍기는 내 잠긴 기물만 전부 해제한다", () => {
+	const h: Heat = {
+		g1: { heat: 0, lock: 2, color: "w" },
+		h2: { heat: 0, lock: 1, color: "w" },
+		e4: { heat: 2, lock: 0, color: "w" },
+		g8: { heat: 0, lock: 2, color: "b" },
+	};
+	const { heat, squares } = useFan(h, "w");
+	expect(squares.sort()).toEqual(["g1", "h2"]);
+	expect(heat.g1).toBeUndefined();
+	expect(heat.h2).toBeUndefined();
+	expect(heat.e4).toEqual({ heat: 2, lock: 0, color: "w" }); // 열만 있으면 유지
+	expect(heat.g8).toEqual({ heat: 0, lock: 2, color: "b" }); // 상대 잠금 불변
+	expect(h.g1).toEqual({ heat: 0, lock: 2, color: "w" }); // 원본 불변
+});
+
+test("선풍기는 잠긴 게 없으면 아무것도 바꾸지 않는다", () => {
+	const h: Heat = { e4: { heat: 2, lock: 0, color: "w" } };
+	const { heat, squares } = useFan(h, "w");
+	expect(squares).toEqual([]);
+	expect(heat).toBe(h);
+});
+
+test("아메리카노는 상대 기물 하나를 잠근다 — r 주입으로 결정적", () => {
+	const chess = new Chess();
+	const h: Heat = {};
+	const first = useCoffee(h, chess, "b", 0);
+	expect(first.square).toBe("a8"); // board 순서(a8→h1)의 첫 후보
+	expect(first.heat.a8).toEqual({ heat: 0, lock: LOCK_TURNS, color: "b" });
+	expect(h).toEqual({}); // 원본 불변
+	const last = useCoffee(h, chess, "b", 0.999);
+	expect(last.square).toBe("h7"); // 킹 제외 15개 후보 중 마지막
+});
+
+test("아메리카노는 이미 잠긴 기물은 다시 고르지 않는다", () => {
+	const chess = new Chess();
+	const h: Heat = { a8: { heat: 0, lock: 2, color: "b" } };
+	expect(useCoffee(h, chess, "b", 0).square).toBe("b8");
+});
+
+test("아메리카노는 킹만 남으면 대상이 없어 null 을 준다", () => {
+	const chess = new Chess("7k/8/8/8/8/8/8/K7 w - - 0 1");
+	const h: Heat = {};
+	const { heat, square } = useCoffee(h, chess, "b");
+	expect(square).toBeNull();
+	expect(heat).toBe(h);
+});
+
+test("아메리카노는 대상의 누적 heat 을 지우지 않는다", () => {
+	const chess = new Chess();
+	const h: Heat = { a8: { heat: 2, lock: 0, color: "b" } };
+	const { heat, square } = useCoffee(h, chess, "b", 0);
+	expect(square).toBe("a8");
+	expect(heat.a8).toEqual({ heat: 2, lock: LOCK_TURNS, color: "b" });
+});
+
+test("커피 잠금이 풀리면 원래 heat 로 복귀한다", () => {
+	const chess = new Chess();
+	let h: Heat = { a8: { heat: 2, lock: 0, color: "b" } };
+	h = useCoffee(h, chess, "b", 0).heat;
+	// 흑이 두 수 두는 동안 lock 2 → 1 → 0
+	for (const san of ["e4", "e5", "d4", "d5"]) h = applyHeat(h, chess.move(san));
+	expect(isLocked(h, "a8")).toBe(false);
+	expect(h.a8).toEqual({ heat: 2, lock: 0, color: "b" }); // 열은 세탁되지 않는다
+});
+
+test("hasCoffeeTarget 은 useCoffee 와 같은 기준으로 대상 유무를 알려준다", () => {
+	expect(hasCoffeeTarget({}, new Chess(), "b")).toBe(true);
+	// 킹만 남으면 대상 없음
+	expect(
+		hasCoffeeTarget({}, new Chess("7k/8/8/8/8/8/8/K7 w - - 0 1"), "b"),
+	).toBe(false);
+	// 비-킹 기물이 전부 잠겨 있으면 대상 없음 — useCoffee 의 null 과 일치
+	const onePawn = new Chess("1k6/p7/8/8/8/8/8/K7 w - - 0 1");
+	const locked: Heat = { a7: { heat: 0, lock: 2, color: "b" } };
+	expect(hasCoffeeTarget(locked, onePawn, "b")).toBe(false);
+	expect(useCoffee(locked, onePawn, "b").square).toBeNull();
+	expect(hasCoffeeTarget({}, onePawn, "b")).toBe(true);
+});
+
+test("이중열돔(overheatAt=2)에서는 두 번 이동에 과열된다", () => {
+	const chess = new Chess();
+	let h: Heat = {};
+	const mv = (san: string) => (h = applyHeat(h, chess.move(san), false, 2));
+	mv("Nf3");
+	mv("Nf6");
+	expect(h.f3).toEqual({ heat: 1, lock: 0, color: "w" }); // 아직 임계값 미만
+	mv("Ng1"); // 2회째 → 과열
+	expect(h.g1).toEqual({ heat: 0, lock: LOCK_TURNS, color: "w" });
 });

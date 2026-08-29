@@ -111,6 +111,10 @@ let airconSq: Record<"w" | "b", string | null> = { w: null, b: null };
 let picking: "w" | "b" | null = null;
 // 아이템 모드 — 히트 규칙 + 아이템. 에어컨과 동시에 켜지지 않는다
 let itemOn = false;
+// 일반 체스 — 히트도 아이템도 없는 보통 체스
+let plainOn = false;
+// 히트 규칙을 끄는 모드 (에어컨 / 일반)
+const noHeat = () => airconOn || plainOn;
 // 양쪽 모두 시작 시 3종을 다 갖는다 — 아이템별로 1회씩 쓴다
 const freshUse = (): Record<Item, boolean> => ({
 	fan: false,
@@ -584,7 +588,7 @@ function doMove(
 		lostPieces[move.color === "w" ? "b" : "w"].push(move.captured);
 	// 과열 판정은 잠금 유무가 아니라 이동 전 열로 본다 (에어컨 모드는 히트 규칙 없음)
 	const overheated = (heat[from]?.heat ?? 0) + 1 >= overheatLimit();
-	heat = applyHeat(heat, move, airconOn, overheatLimit());
+	heat = applyHeat(heat, move, noHeat(), overheatLimit());
 	// 이 수의 과열 판정까지 끝난 뒤에 열돔 턴을 깎는다
 	tickDome();
 	sel = null;
@@ -671,7 +675,7 @@ function step() {
 				chess,
 				heat,
 				AI_DEPTH[modeEl.value] ?? 3,
-				airconOn,
+				noHeat(),
 				airconOn ? airconSq[aiSide()] : null,
 				AI_TIME[modeEl.value] ?? 0,
 				overheatLimit(),
@@ -837,15 +841,17 @@ itemsEl.addEventListener("click", (e) => {
 	activateItem(btn.dataset.color as "w" | "b", btn.dataset.item as Item);
 });
 
-// 게임 모드 셀렉트 — 🔥 히트 / ❄️ 에어컨 / 🎁 아이템. 에어컨과 아이템은 동시에 켜지지 않는다
+// 게임 모드 셀렉트 — 🔥 히트 / ❄️ 에어컨 / 🎁 아이템 / 일반. 하나만 켜진다
 const gameModeEl = document.getElementById("game-mode") as HTMLSelectElement;
-const gameModeValue = () => (airconOn ? "aircon" : itemOn ? "item" : "heat");
+const gameModeValue = () =>
+	airconOn ? "aircon" : itemOn ? "item" : plainOn ? "plain" : "heat";
 const helpEl = document.getElementById("help")!;
 const helpSummaryEl = helpEl.querySelector("summary")!;
 const HELP_SUMMARY: Record<string, string> = {
 	heat: "규칙: 체스와 같지만, 같은 기물을 계속 굴리면 뻗는다",
 	aircon: "규칙: 체스와 같지만, 비밀 에어컨 기물이 잡히면 진다",
 	item: "규칙: 히트 규칙 그대로, 아이템 한 방이 더해진다",
+	plain: "규칙: 그냥 체스. 열도 아이템도 없다",
 };
 function drawGameMode() {
 	gameModeEl.value = gameModeValue();
@@ -866,6 +872,7 @@ gameModeEl.addEventListener("change", () => {
 	}
 	airconOn = gameModeEl.value === "aircon";
 	itemOn = gameModeEl.value === "item";
+	plainOn = gameModeEl.value === "plain";
 	drawGameMode();
 	newGame();
 });

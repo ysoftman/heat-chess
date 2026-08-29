@@ -929,6 +929,7 @@
             <option value="heat">🔥 히트</option>
             <option value="aircon">❄️ 에어컨</option>
             <option value="item">🎁 아이템</option>
+            <option value="plain">일반</option>
           </select>
           <select id="mode" title="상대와 AI 난이도">
             <option value="ai1">vs AI(쉬움)</option>
@@ -984,6 +985,10 @@
               <b>히트메이트</b>로 패배
             </li>
             <li>한 턴은 <b id="turn-label">30초</b>. 넘기면 시간패</li>
+            <li data-modes="plain">
+              <b>일반 체스</b>: 변형 규칙 없는 보통 체스. 열도 과열 잠금도
+              아이템도 없다
+            </li>
             <li data-modes="aircon">
               ❄️ <b>에어컨 체스</b>: 시작할 때 내 기물 하나(킹 제외)를 몰래
               에어컨으로 지정한다. 상대에겐 안 보인다. 그 기물이 잡히면

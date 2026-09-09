@@ -163,12 +163,12 @@ export function status(chess: Chess, h: Heat): Status {
 	const side = chess.turn() === "w" ? "백" : "흑";
 	const other = chess.turn() === "w" ? "흑" : "백";
 	if (chess.isCheckmate())
-		return { over: true, text: `체크메이트 — ${other} 승`, mustPass: false };
+		return { over: true, text: `체크메이트, ${other} 승`, mustPass: false };
 	if (chess.isDraw() || chess.isStalemate())
 		return { over: true, text: "무승부", mustPass: false };
 	if (legalMoves(chess, h).length === 0) {
 		return chess.isCheck()
-			? { over: true, text: `히트메이트 — ${other} 승`, mustPass: false }
+			? { over: true, text: `히트메이트, ${other} 승`, mustPass: false }
 			: { over: false, text: `${side}: 전부 과열, 한 턴 쉼`, mustPass: true };
 	}
 	return {

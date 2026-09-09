@@ -649,7 +649,7 @@ function step() {
 		const human = !modeEl.value.startsWith("ai") || side === humanSide();
 		if (human && itemOn && !itemUsed[side].fan && hasLocked(side)) {
 			statusEl.textContent =
-				"움직일 기물이 없습니다 — 선풍기를 쓰거나, 시간이 다 되면 시간패";
+				"움직일 기물이 없습니다. 선풍기를 쓰거나, 시간이 다 되면 시간패";
 			startClock();
 			return;
 		}
@@ -800,7 +800,7 @@ function newGame() {
 		step();
 		// 받은 아이템 안내 — 이제 양쪽 다 3종을 갖는다
 		if (itemOn)
-			statusEl.textContent += ` — 🎁 ${ITEMS.map((it) => ITEM_INFO[it].label).join(" · ")}`;
+			statusEl.textContent += ` · 🎁 ${ITEMS.map((it) => ITEM_INFO[it].label).join(", ")}`;
 	}
 }
 

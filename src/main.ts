@@ -1040,9 +1040,15 @@ if (buildInfoEl) {
 	const version =
 		typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "develop";
 	const commit = typeof __APP_COMMIT__ === "string" ? __APP_COMMIT__ : "dev";
-	const time =
+	const built =
 		typeof __APP_BUILD_TIME__ === "string"
-			? __APP_BUILD_TIME__
-			: new Date().toISOString().slice(0, 10);
-	buildInfoEl.textContent = `${version} · ${commit} · ${time}`;
+			? new Date(__APP_BUILD_TIME__)
+			: new Date();
+	// 빌드 시각(UTC ISO)을 KST 로 — sv-SE 로케일이 "YYYY-MM-DD HH:mm" 형태를 준다
+	const time = built.toLocaleString("sv-SE", {
+		timeZone: "Asia/Seoul",
+		dateStyle: "short",
+		timeStyle: "short",
+	});
+	buildInfoEl.textContent = `${version} · ${commit} · ${time} KST`;
 }

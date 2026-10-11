@@ -39,6 +39,11 @@
         --shadow-panel: inset 0 1px 0 #ffffff08, 0 12px 32px -20px #000c;
         /* fx.ts 의 dome 키프레임이 이 값을 하드코딩으로 반복한다 — 바꾸면 fx.ts 도 함께 */
         --shadow-board: 0 24px 60px -16px #000d;
+        /* 보드 한 변 상한 — 세로 공간(보드 위아래 크롬 ≈ 200px 를 뺀 높이) 기준.
+           폭은 그리드가 알아서 줄이니 넓으면 폭, 낮으면 높이에 맞춰 화면을 채운다 */
+        --board-max: max(300px, 100dvh - 210px);
+        /* 본문(보드, PC 는 보드+콘솔) 폭 — 상단 바가 이 폭으로 가운데 정렬된다 */
+        --content-w: calc(var(--board-max) + 22px);
       }
       /* 모드별 테마 — 크롬(배경·패널·선·액센트)만 바꾼다. 열/에어컨 연출 색은 게임 의미라
          고정이고, 체스판 색은 사용자 선택(data-board)이라 건드리지 않는다.
@@ -137,7 +142,7 @@
         justify-content: space-between;
         gap: 16px;
         height: 60px;
-        padding: 0 clamp(16px, 4vw, 40px);
+        padding: 0 max(16px, (100% - var(--content-w)) / 2);
         border-bottom: 1px solid var(--line);
       }
       h1 {
@@ -218,7 +223,7 @@
       }
       #board-wrap {
         display: grid;
-        grid-template-columns: 20px minmax(0, min(88vw, 560px));
+        grid-template-columns: 20px minmax(0, var(--board-max));
         grid-template-rows: auto auto auto 20px auto;
         column-gap: 2px;
       }
@@ -643,7 +648,8 @@
       #right {
         align-items: stretch;
         gap: 0;
-        width: min(92vw, 560px);
+        width: 100%;
+        max-width: calc(var(--board-max) + 22px);
         padding: 16px;
         background: var(--surface);
         border: 1px solid var(--line);
@@ -1025,8 +1031,11 @@
           display: none;
         }
         #stage {
-          padding: 14px 10px 32px;
+          padding: 14px 6px 32px;
           gap: 14px;
+        }
+        #board-wrap {
+          grid-template-columns: 14px minmax(0, var(--board-max));
         }
         #status {
           font-size: 16px;
@@ -1052,16 +1061,16 @@
 
       /* 와이드(PC) 화면: 왼쪽에 보드, 오른쪽에 콘솔 2단 레이아웃.
          보드 캡은 세로 공간 기준(--board-max) — 보드 위아래 크롬(상단 바/상태 띠/
-         트레이/파일행/여백 ≈ 240px)을 뺀 높이까지 키우되 560~760px 로 제한해
-         낮은 해상도에서는 그대로이고 스크롤도 생기지 않는다 */
+         트레이/파일행/여백 ≈ 225px)을 뺀 높이까지 상한 없이 키운다. 낮은 화면에선
+         560px 를 지키고, 좁으면 콘솔 열에 밀려 그리드가 줄인다 */
       @media (min-width: 1000px) {
         :root {
-          --board-max: clamp(560px, 100dvh - 250px, 760px);
-        }
-        #board-wrap {
-          grid-template-columns: 20px minmax(0, var(--board-max));
+          --board-max: max(560px, 100dvh - 230px);
+          /* 보드 열 + 열 간격 28 + 콘솔 최대 460 */
+          --content-w: calc(var(--board-max) + 510px);
         }
         #stage {
+          padding-bottom: 20px;
           display: grid;
           grid-template-columns:
             minmax(0, calc(var(--board-max) + 22px))

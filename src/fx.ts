@@ -1,5 +1,6 @@
 // 아이템 발동 연출 — 선풍기(fanFx) / 뜨거운 아메리카노(coffeeFx) / 이중열돔(domeFx).
 import fanSvg from "./fan.svg";
+import coffeeIcon from "./icon/coffee.webp";
 
 // CSS 는 모듈 로드 시 <style> 로 1회 주입하고, 일시 연출 노드는 타이머로 스스로 제거한다.
 // (reduced-motion 에서 animation 이 꺼지면 animationend 가 안 오므로 타이머 제거가 안전하다)
@@ -50,14 +51,15 @@ const CSS = `
 		opacity: 0;
 	}
 }
-/* 아메리카노 — ☕ 가 기울며 쏟아지고, 바닥에 갈색 얼룩이 번지고, 김이 오른다 */
+/* 아메리카노 — 커피잔 아이콘이 기울며 쏟아지고, 바닥에 갈색 얼룩이 번지고, 김이 오른다 */
 .fx-coffee::before {
-	content: "☕";
+	content: "";
 	position: absolute;
 	top: 4%;
 	left: 50%;
-	font-size: min(5.5vw, 26px);
-	line-height: 1;
+	width: min(6vw, 28px);
+	height: min(6vw, 28px);
+	background: url(${coffeeIcon}) center / contain no-repeat;
 	transform-origin: 80% 90%;
 	animation: fx-pour ${FX_MS}ms ease-in forwards;
 }

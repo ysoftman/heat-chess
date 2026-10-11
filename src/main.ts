@@ -17,6 +17,16 @@ import {
 	useCoffee,
 	useFan,
 } from "./game";
+import coffeeIcon from "./icon/coffee.webp";
+import domeIcon from "./icon/dome.webp";
+import doneIcon from "./icon/done.webp";
+import fireIcon from "./icon/fire.webp";
+import giftIcon from "./icon/gift.webp";
+import snowIcon from "./icon/snowflake.webp";
+import soundOffIcon from "./icon/sound-off.webp";
+import soundOnIcon from "./icon/sound-on.webp";
+import timerIcon from "./icon/timer.webp";
+import waitIcon from "./icon/waiting.webp";
 import bB from "./piece/bB.svg";
 import bK from "./piece/bK.svg";
 import bN from "./piece/bN.svg";
@@ -62,6 +72,7 @@ const THEME_KEY = "heat-chess-board";
 const TURN_KEY = "heat-chess-turn";
 const SOUND_KEY = "heat-chess-sound";
 const SIDE_KEY = "heat-chess-side";
+const HELP_KEY = "heat-chess-help";
 
 // 프라이빗 모드 등에서 localStorage 접근 자체가 막힐 수 있다
 function readStore(key: string) {
@@ -142,6 +153,8 @@ let record = loadRecord();
 let recorded = false;
 let soundOn = readStore(SOUND_KEY) !== "off";
 let sanMoves: string[] = [];
+// 보드에 강조할 직전 수 — 패스는 수가 아니라서 그대로 둔다
+let lastMove: { from: string; to: string } | null = null;
 // AI 가 아이템을 쓴 수 번호 — 한 턴에 하나만 쓰게 막는다 (-1 = 아직 없음)
 let aiItemPly = -1;
 // undo 용 스냅샷 — 수를 두기 직전 상태를 담는다 (heat 는 불변이라 참조로 충분)
@@ -151,6 +164,7 @@ type Snap = {
 	lost: Record<"w" | "b", string[]>;
 	aircon: Record<"w" | "b", string | null>;
 	san: string[];
+	last: { from: string; to: string } | null;
 	used: Record<"w" | "b", Record<Item, boolean>>;
 	dome: number;
 };
@@ -262,9 +276,10 @@ function startClock() {
 
 function drawClock() {
 	const min = Math.floor(left / 60);
-	clockEl.textContent = min
-		? `⏱ ${min}:${String(left % 60).padStart(2, "0")}`
-		: `⏱ ${left}`;
+	clockEl.replaceChildren(
+		ico(timerIcon),
+		min ? `${min}:${String(left % 60).padStart(2, "0")}` : String(left),
+	);
 	clockEl.classList.toggle("low", left <= 5);
 }
 
@@ -328,11 +343,20 @@ function fillTray(
 	}
 }
 
+// 수 번호 · 백 · 흑 3열 그리드 — 패스도 한 수라 백/흑이 번갈아 채워진다
 function drawMoves() {
-	const parts: string[] = [];
-	for (let i = 0; i < sanMoves.length; i++)
-		parts.push(`${i % 2 === 0 ? `${i / 2 + 1}. ` : ""}${sanMoves[i]}`);
-	movesEl.textContent = parts.join(" ");
+	movesEl.replaceChildren(
+		...sanMoves.flatMap((san, i) => {
+			const cell = document.createElement("span");
+			cell.textContent = san;
+			if (i === sanMoves.length - 1) cell.className = "last";
+			if (i % 2) return [cell];
+			const no = document.createElement("span");
+			no.className = "no";
+			no.textContent = `${i / 2 + 1}.`;
+			return [no, cell];
+		}),
+	);
 	movesEl.scrollTop = movesEl.scrollHeight;
 }
 
@@ -340,15 +364,25 @@ function updateUndo() {
 	undoEl.disabled = busy || picking !== null || history.length === 0;
 }
 
-const ITEM_INFO: Record<Item, { label: string; desc: string }> = {
-	// 선풍기 아이콘은 이모지 대신 회전 팬 SVG(fan.svg) — itemLabel() 이 조립한다
-	fan: { label: "선풍기", desc: "내 과열 기물을 전부 해제" },
+// 이모지 자리를 대신하는 아이콘 이미지 (src/icon/*.webp, fan.svg) — 크기는 CSS .ico 가 글자에 맞춘다
+function ico(src: string, alt = ""): HTMLImageElement {
+	const img = document.createElement("img");
+	img.src = src;
+	img.alt = alt;
+	img.className = "ico";
+	return img;
+}
+
+const ITEM_INFO: Record<Item, { icon: string; label: string; desc: string }> = {
+	fan: { icon: fanIcon, label: "선풍기", desc: "내 과열 기물을 전부 해제" },
 	coffee: {
-		label: "☕ 아메리카노",
+		icon: coffeeIcon,
+		label: "아메리카노",
 		desc: "상대 기물 하나를 랜덤으로 2턴 잠금",
 	},
 	dome: {
-		label: "♨️ 이중열돔",
+		icon: domeIcon,
+		label: "이중열돔",
 		desc: `발동 후 ${DOME_TURNS}턴 동안 과열 임계값 4→2 (양쪽 모두)`,
 	},
 };
@@ -356,14 +390,9 @@ const ITEM_INFO: Record<Item, { label: string; desc: string }> = {
 const hasLocked = (color: "w" | "b") =>
 	Object.values(heat).some((c) => c.color === color && c.lock > 0);
 
-// 버튼용 라벨 조각 — 선풍기만 SVG 아이콘 + 텍스트, 나머지는 라벨의 이모지 그대로
-function itemLabel(item: Item, suffix = ""): (Node | string)[] {
-	if (item !== "fan") return [`${ITEM_INFO[item].label}${suffix}`];
-	const ico = document.createElement("img");
-	ico.src = fanIcon;
-	ico.alt = "";
-	ico.className = "fan-ico";
-	return [ico, ` ${ITEM_INFO[item].label}${suffix}`];
+// 상태 문구용 라벨 조각 — 아이콘 + 텍스트
+function itemLabel(item: Item): (Node | string)[] {
+	return [ico(ITEM_INFO[item].icon), ` ${ITEM_INFO[item].label}`];
 }
 
 // 지금 써서 효과가 있는 아이템인지 — 헛소모를 막는 조건 (열돔은 언제나 가능)
@@ -381,12 +410,8 @@ function itemButton(color: "w" | "b", item: Item, showSide: boolean) {
 	btn.dataset.color = color;
 	btn.dataset.item = item;
 	const used = itemUsed[color][item];
-	// 소진(✓)/조건 불충족 대기(⏳)/사용 가능을 구분해 "못 받은 것"으로 오인하지 않게 한다
+	// 소진(체크)/조건 불충족 대기(모래시계)/사용 가능을 구분해 "못 받은 것"으로 오인하지 않게 한다
 	const waiting = !used && !itemReady(color, item);
-	btn.replaceChildren(
-		...(showSide ? [`${color === "w" ? "백" : "흑"} `] : []),
-		...itemLabel(item, used ? " ✓" : waiting ? " ⏳" : ""),
-	);
 	btn.title = used
 		? "이미 사용한 아이템"
 		: waiting
@@ -394,7 +419,17 @@ function itemButton(color: "w" | "b", item: Item, showSide: boolean) {
 				? "과열 기물이 생기면 사용할 수 있다"
 				: "잠글 상대 기물이 생기면 사용할 수 있다"
 			: ITEM_INFO[item].desc;
-	btn.classList.toggle("used", used);
+	// 설명/사유를 버튼 둘째 줄에도 적는다 — 터치 기기에선 title 툴팁이 안 보인다
+	const sub = document.createElement("small");
+	sub.textContent = btn.title;
+	// 큰 아이콘(왼쪽, 두 줄 높이) + 이름 + 설명 — 배치는 CSS #items button 그리드
+	const name = document.createElement("span");
+	name.append(
+		...(showSide ? [`${color === "w" ? "백" : "흑"} `] : []),
+		ITEM_INFO[item].label,
+		...(used ? [" ", ico(doneIcon)] : waiting ? [" ", ico(waitIcon)] : []),
+	);
+	btn.replaceChildren(ico(ITEM_INFO[item].icon), name, sub);
 	btn.classList.toggle("wait", waiting);
 	btn.disabled = used || waiting || busy || chess.turn() !== color;
 	return btn;
@@ -445,7 +480,11 @@ function activateItem(color: "w" | "b", item: Item): boolean {
 		render();
 		domeFx(boardEl);
 	}
-	statusEl.textContent = `${color === "w" ? "백" : "흑"} ${ITEM_INFO[item].label} 발동!`;
+	statusEl.replaceChildren(
+		`${color === "w" ? "백" : "흑"} `,
+		...itemLabel(item),
+		" 발동!",
+	);
 	return true;
 }
 
@@ -476,7 +515,7 @@ function render() {
 	// 열돔은 한동안 지속되는 규칙 변경이라 남은 턴 수를 배지로 남긴다
 	// (만료·undo 로 풀리면 배지와 보드 아지랑이가 함께 사라진다)
 	domeFlagEl.hidden = domeTurns === 0;
-	domeFlagEl.textContent = `♨️ 열돔 ${domeTurns}`;
+	domeFlagEl.replaceChildren(ico(domeIcon), ` 열돔 ${domeTurns}`);
 	boardEl.classList.toggle("dome-on", domeTurns > 0);
 	const flip = flipped();
 	renderTaken(flip);
@@ -485,6 +524,7 @@ function render() {
 	const targets = sel
 		? legalMoves(chess, heat).filter((m) => m.from === sel)
 		: [];
+	const check = chess.isCheck();
 	boardEl.replaceChildren(
 		...board.flatMap((row, r) =>
 			row.map((_, f) => {
@@ -497,6 +537,11 @@ function render() {
 				el.className = `sq ${(r + f) % 2 ? "dark" : "light"}`;
 				el.dataset.sq = sq;
 				if (sq === sel) el.classList.add("sel");
+				if (sq === lastMove?.from || sq === lastMove?.to)
+					el.classList.add("last");
+				// 체크당한 쪽은 언제나 지금 둘 차례인 쪽이다
+				if (check && piece?.type === "k" && piece.color === chess.turn())
+					el.classList.add("check");
 				const target = targets.find((m) => m.to === sq);
 				if (target) {
 					el.classList.add("target");
@@ -529,9 +574,11 @@ function render() {
 					if (cell?.lock || cell?.heat) {
 						const badge = document.createElement("span");
 						badge.className = `badge ${cell.lock ? "overheat" : ""}`;
-						badge.textContent = cell.lock
-							? `🔥${cell.lock}`
-							: String(cell.heat);
+						badge.replaceChildren(
+							...(cell.lock
+								? [ico(fireIcon), String(cell.lock)]
+								: [String(cell.heat)]),
+						);
 						el.append(badge);
 					}
 				}
@@ -546,10 +593,9 @@ function render() {
 					gust.className = "wind wind-gust";
 					el.append(gust);
 					// 우하단 고정 아이콘 — 열 배지(우상단)와 겹치지 않는다
-					const ico = document.createElement("span");
-					ico.className = "aircon-ico";
-					ico.textContent = "❄️";
-					el.append(ico);
+					const snow = ico(snowIcon);
+					snow.className = "aircon-ico";
+					el.append(snow);
 				}
 				return el;
 			}),
@@ -578,12 +624,14 @@ function doMove(
 			lost: { w: [...lostPieces.w], b: [...lostPieces.b] },
 			aircon: { ...airconSq },
 			san: [...sanMoves],
+			last: lastMove,
 			// 진영별 중첩 객체라 얕은 복사로는 부족하다
 			used: { w: { ...itemUsed.w }, b: { ...itemUsed.b } },
 			dome: domeTurns,
 		});
 	const move = chess.move({ from, to, promotion });
 	sanMoves.push(move.san);
+	lastMove = { from, to };
 	if (move.captured)
 		lostPieces[move.color === "w" ? "b" : "w"].push(move.captured);
 	// 과열 판정은 잠금 유무가 아니라 이동 전 열로 본다 (에어컨 모드는 히트 규칙 없음)
@@ -602,7 +650,10 @@ function doMove(
 		busy = true;
 		stopClock();
 		clearTimeout(pending);
-		statusEl.textContent = `❄️ 에어컨 기물 격추, ${move.color === "w" ? "백" : "흑"} 승`;
+		statusEl.replaceChildren(
+			ico(snowIcon),
+			` 에어컨 기물 격추, ${move.color === "w" ? "백" : "흑"} 승`,
+		);
 		finish(move.color === humanSide() ? "w" : "l");
 		thud(42, 1.2, "sawtooth", 0.32);
 		return;
@@ -792,6 +843,7 @@ function newGame() {
 	domeTurns = 0;
 	aiItemPly = -1;
 	sanMoves = [];
+	lastMove = null;
 	history = [];
 	stopClock();
 	render();
@@ -800,7 +852,11 @@ function newGame() {
 		step();
 		// 받은 아이템 안내 — 이제 양쪽 다 3종을 갖는다
 		if (itemOn)
-			statusEl.textContent += ` · 🎁 ${ITEMS.map((it) => ITEM_INFO[it].label).join(", ")}`;
+			statusEl.append(
+				" · ",
+				ico(giftIcon),
+				...ITEMS.flatMap((it, i) => [i ? ", " : " ", ...itemLabel(it)]),
+			);
 	}
 }
 
@@ -841,11 +897,23 @@ itemsEl.addEventListener("click", (e) => {
 	activateItem(btn.dataset.color as "w" | "b", btn.dataset.item as Item);
 });
 
-// 게임 모드 셀렉트 — 🔥 히트 / ❄️ 에어컨 / 🎁 아이템 / 일반. 하나만 켜진다
+// 게임 모드 셀렉트 — 히트 / 에어컨 / 아이템 / 일반. 하나만 켜진다
 const gameModeEl = document.getElementById("game-mode") as HTMLSelectElement;
+// option 에는 이미지를 못 넣으니 선택된 모드의 아이콘만 셀렉트 왼쪽 안에 겹쳐 보인다
+const gameModeIcoEl = document.getElementById(
+	"game-mode-ico",
+) as HTMLImageElement;
+const themeColorEl = document.querySelector<HTMLMetaElement>(
+	'meta[name="theme-color"]',
+)!;
+const MODE_ICON: Record<string, string> = {
+	heat: fireIcon,
+	aircon: snowIcon,
+	item: giftIcon,
+};
 const gameModeValue = () =>
 	airconOn ? "aircon" : itemOn ? "item" : plainOn ? "plain" : "heat";
-const helpEl = document.getElementById("help")!;
+const helpEl = document.getElementById("help") as HTMLDetailsElement;
 const helpSummaryEl = helpEl.querySelector("summary")!;
 const HELP_SUMMARY: Record<string, string> = {
 	heat: "규칙: 체스와 같지만, 같은 기물을 계속 굴리면 뻗는다",
@@ -854,11 +922,17 @@ const HELP_SUMMARY: Record<string, string> = {
 	plain: "규칙: 그냥 체스. 열도 아이템도 없다",
 };
 function drawGameMode() {
-	gameModeEl.value = gameModeValue();
-	gameModeEl.classList.toggle("on", airconOn);
-	gameModeEl.classList.toggle("item", itemOn);
-	// 현재 모드의 설명만 보인다 — data-modes 없는 항목은 공통(항상 표시)
 	const mode = gameModeValue();
+	gameModeEl.value = mode;
+	// 모드별 테마(index.html body[data-mode]) — 모바일 브라우저 상단 바 색도 배경에 맞춘다
+	document.body.dataset.mode = mode;
+	themeColorEl.content = getComputedStyle(document.body)
+		.getPropertyValue("--bg")
+		.trim();
+	const icon = MODE_ICON[mode];
+	gameModeIcoEl.hidden = !icon;
+	if (icon) gameModeIcoEl.src = icon;
+	// 현재 모드의 설명만 보인다 — data-modes 없는 항목은 공통(항상 표시)
 	helpSummaryEl.textContent = HELP_SUMMARY[mode]!;
 	helpEl.querySelectorAll<HTMLElement>("[data-modes]").forEach((el) => {
 		el.hidden = !el.dataset.modes!.split(" ").includes(mode);
@@ -899,19 +973,24 @@ undoEl.addEventListener("click", () => {
 	// 되돌린 수 번호가 우연히 겹쳐 AI 가 한 턴 아이템을 못 쓰는 일을 막는다
 	aiItemPly = -1;
 	sanMoves = [...snap.san];
+	lastMove = snap.last;
 	sel = null;
 	busy = false;
 	render();
 	step();
 });
 
-const soundLabel = () => (soundOn ? "🔊" : "🔇");
-soundEl.textContent = soundLabel();
+function drawSound() {
+	soundEl.title = soundOn ? "효과음 끄기" : "효과음 켜기";
+	soundEl.replaceChildren(
+		ico(soundOn ? soundOnIcon : soundOffIcon, soundEl.title),
+	);
+}
+drawSound();
 soundEl.addEventListener("click", () => {
 	soundOn = !soundOn;
 	writeStore(SOUND_KEY, soundOn ? null : "off");
-	soundEl.textContent = soundLabel();
-	soundEl.title = soundOn ? "효과음 끄기" : "효과음 켜기";
+	drawSound();
 });
 
 recordEl.addEventListener("click", () => {
@@ -937,6 +1016,14 @@ document.body.dataset.board = themeEl.value;
 themeEl.addEventListener("change", () => {
 	document.body.dataset.board = themeEl.value;
 	writeStore(THEME_KEY, themeEl.value);
+});
+
+// 규칙은 첫 방문에만 펼쳐 두고, 이후엔 마지막으로 둔 상태(기본 접힘)를 따른다
+const helpPref = readStore(HELP_KEY);
+helpEl.open = helpPref !== "closed";
+if (!helpPref) writeStore(HELP_KEY, "closed");
+helpEl.addEventListener("toggle", () => {
+	writeStore(HELP_KEY, helpEl.open ? "open" : "closed");
 });
 
 humanColor = readStore(SIDE_KEY) === "b" ? "b" : "w";

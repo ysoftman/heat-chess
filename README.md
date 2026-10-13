@@ -37,6 +37,11 @@ bun run build   # dist/
 
 기물 이미지는 [lichess-org/lila](https://github.com/lichess-org/lila) 의
 `public/piece/cburnett` 세트를 그대로 가져와 `src/piece/` 에 두었다.
+카툰 세트(`src/piece/cartoon/`)는 "Cartoon Chess Piece Icon Sheet" 이미지를 12조각으로 잘라
+webp 로 변환한 것이다. 우측 패널의 기물 셀렉트로 바꿀 수 있다.
+캐릭터 세트(`src/piece/chara/`)는 "Chess Team Destruction Sprite Atlas" 의 체커보드 배경을
+투명하게 만들고 72프레임으로 잘라 넣었다. 정지 기물 12장과 잡힐 때 재생하는 부서지는
+5프레임 스트립 12장으로 구성된다.
 
 효과음은 리소스 없이 WebAudio 오실레이터로 합성한다 (이동 / 캡처 / 과열 / 체크).
 

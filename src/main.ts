@@ -33,6 +33,42 @@ import bN from "./piece/bN.svg";
 import bP from "./piece/bP.svg";
 import bQ from "./piece/bQ.svg";
 import bR from "./piece/bR.svg";
+import cbB from "./piece/cartoon/bB.webp";
+import cbK from "./piece/cartoon/bK.webp";
+import cbN from "./piece/cartoon/bN.webp";
+import cbP from "./piece/cartoon/bP.webp";
+import cbQ from "./piece/cartoon/bQ.webp";
+import cbR from "./piece/cartoon/bR.webp";
+import cwB from "./piece/cartoon/wB.webp";
+import cwK from "./piece/cartoon/wK.webp";
+import cwN from "./piece/cartoon/wN.webp";
+import cwP from "./piece/cartoon/wP.webp";
+import cwQ from "./piece/cartoon/wQ.webp";
+import cwR from "./piece/cartoon/wR.webp";
+import tbB from "./piece/chara/bB.webp";
+import tbBx from "./piece/chara/bB-smash.webp";
+import tbK from "./piece/chara/bK.webp";
+import tbKx from "./piece/chara/bK-smash.webp";
+import tbN from "./piece/chara/bN.webp";
+import tbNx from "./piece/chara/bN-smash.webp";
+import tbP from "./piece/chara/bP.webp";
+import tbPx from "./piece/chara/bP-smash.webp";
+import tbQ from "./piece/chara/bQ.webp";
+import tbQx from "./piece/chara/bQ-smash.webp";
+import tbR from "./piece/chara/bR.webp";
+import tbRx from "./piece/chara/bR-smash.webp";
+import twB from "./piece/chara/wB.webp";
+import twBx from "./piece/chara/wB-smash.webp";
+import twK from "./piece/chara/wK.webp";
+import twKx from "./piece/chara/wK-smash.webp";
+import twN from "./piece/chara/wN.webp";
+import twNx from "./piece/chara/wN-smash.webp";
+import twP from "./piece/chara/wP.webp";
+import twPx from "./piece/chara/wP-smash.webp";
+import twQ from "./piece/chara/wQ.webp";
+import twQx from "./piece/chara/wQ-smash.webp";
+import twR from "./piece/chara/wR.webp";
+import twRx from "./piece/chara/wR-smash.webp";
 import wB from "./piece/wB.svg";
 import wK from "./piece/wK.svg";
 import wN from "./piece/wN.svg";
@@ -40,20 +76,66 @@ import wP from "./piece/wP.svg";
 import wQ from "./piece/wQ.svg";
 import wR from "./piece/wR.svg";
 
-// lichess (lila) cburnett 세트 — GPLv2+, 출처는 README 참고
-const PIECE: Record<string, string> = {
-	wk: wK,
-	wq: wQ,
-	wr: wR,
-	wb: wB,
-	wn: wN,
-	wp: wP,
-	bk: bK,
-	bq: bQ,
-	br: bR,
-	bb: bB,
-	bn: bN,
-	bp: bP,
+// cburnett: lichess (lila) 세트 — GPLv2+ / cartoon·chara: 아이콘 이미지를 잘라 넣은 세트. 출처는 README 참고
+const PIECE_SETS: Record<string, Record<string, string>> = {
+	cburnett: {
+		wk: wK,
+		wq: wQ,
+		wr: wR,
+		wb: wB,
+		wn: wN,
+		wp: wP,
+		bk: bK,
+		bq: bQ,
+		br: bR,
+		bb: bB,
+		bn: bN,
+		bp: bP,
+	},
+	cartoon: {
+		wk: cwK,
+		wq: cwQ,
+		wr: cwR,
+		wb: cwB,
+		wn: cwN,
+		wp: cwP,
+		bk: cbK,
+		bq: cbQ,
+		br: cbR,
+		bb: cbB,
+		bn: cbN,
+		bp: cbP,
+	},
+	chara: {
+		wk: twK,
+		wq: twQ,
+		wr: twR,
+		wb: twB,
+		wn: twN,
+		wp: twP,
+		bk: tbK,
+		bq: tbQ,
+		br: tbR,
+		bb: tbB,
+		bn: tbN,
+		bp: tbP,
+	},
+};
+let PIECE = PIECE_SETS.cburnett!;
+// 캐릭터 세트의 부서지는 5프레임 스트립(640x128) — 잡힐 때 .smash 오버레이로 재생한다
+const SMASH: Record<string, string> = {
+	wk: twKx,
+	wq: twQx,
+	wr: twRx,
+	wb: twBx,
+	wn: twNx,
+	wp: twPx,
+	bk: tbKx,
+	bq: tbQx,
+	br: tbRx,
+	bb: tbBx,
+	bn: tbNx,
+	bp: tbPx,
 };
 
 const NAME: Record<string, string> = {
@@ -69,6 +151,7 @@ const PAWNS: Record<string, number> = { q: 9, r: 5, b: 3, n: 3, p: 1 };
 
 const RECORD_KEY = "heat-chess-record";
 const THEME_KEY = "heat-chess-board";
+const PIECE_KEY = "heat-chess-piece";
 const TURN_KEY = "heat-chess-turn";
 const SOUND_KEY = "heat-chess-sound";
 const SIDE_KEY = "heat-chess-side";
@@ -102,6 +185,7 @@ const domeFlagEl = document.getElementById("dome-flag")!;
 const modeEl = document.getElementById("mode") as HTMLSelectElement;
 const sideEl = document.getElementById("side") as HTMLSelectElement;
 const themeEl = document.getElementById("theme") as HTMLSelectElement;
+const pieceEl = document.getElementById("piece") as HTMLSelectElement;
 const ranksEl = document.getElementById("ranks")!;
 const filesEl = document.getElementById("files")!;
 const turnEl = document.getElementById("turn") as HTMLSelectElement;
@@ -508,6 +592,24 @@ function aiWantsItem(): Item | null {
 	);
 }
 
+// 잡힌 기물이 부서지는 연출 — 칸 위치에 오버레이를 얹고 스트립을 CSS steps() 로 넘긴다.
+// 칸이 아니라 보드에 붙여서 render() 가 칸을 다시 그려도 살아남는다
+function smash(sq: string, key: string) {
+	if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+	const cell = boardEl.querySelector<HTMLElement>(`[data-sq="${sq}"]`);
+	const src = SMASH[key];
+	if (!cell || !src) return;
+	const el = document.createElement("div");
+	el.className = "smash";
+	el.style.cssText = `left:${cell.offsetLeft}px;top:${cell.offsetTop}px;width:${cell.offsetWidth}px;height:${cell.offsetHeight}px`;
+	const img = document.createElement("img");
+	img.src = src;
+	img.alt = "";
+	img.addEventListener("animationend", () => el.remove());
+	el.append(img);
+	boardEl.append(el);
+}
+
 function render() {
 	drawMoves();
 	updateUndo();
@@ -525,6 +627,8 @@ function render() {
 		? legalMoves(chess, heat).filter((m) => m.from === sel)
 		: [];
 	const check = chess.isCheck();
+	// 진행 중인 파괴 연출은 칸을 다시 그려도 끝까지 남긴다
+	const fx = Array.from(boardEl.querySelectorAll(".smash"));
 	boardEl.replaceChildren(
 		...board.flatMap((row, r) =>
 			row.map((_, f) => {
@@ -551,6 +655,7 @@ function render() {
 					const cell = heat[sq];
 					const pc = document.createElement("img");
 					pc.className = "pc";
+					pc.draggable = false;
 					pc.src = PIECE[piece.color + piece.type]!;
 					pc.alt = `${piece.color === "w" ? "백" : "흑"} ${NAME[piece.type]}${
 						cell?.lock
@@ -601,6 +706,7 @@ function render() {
 			}),
 		),
 	);
+	boardEl.append(...fx);
 }
 
 // 열돔 1턴 소모 — 양쪽 합쳐 한 수(ply)가 1턴이고 패스도 센다.
@@ -645,6 +751,8 @@ function doMove(
 	const hit = !!move.captured && airconSq[foe] === capturedSquare(move);
 	if (hit) airconSq[foe] = null;
 	render();
+	if (move.captured && pieceEl.value === "chara")
+		smash(capturedSquare(move), foe + move.captured);
 	playSound(move, overheated);
 	if (hit) {
 		busy = true;
@@ -790,8 +898,22 @@ function hidePromo() {
 	promoEl.hidden = true;
 }
 
+// from→to 가 합법이면 둔다 (승격이면 선택 창). 클릭과 드래그가 같이 쓴다
+function tryMove(from: string, to: string) {
+	const opts = legalMoves(chess, heat).filter(
+		(m) => m.from === from && m.to === to,
+	);
+	if (opts.length === 0) return false;
+	if (opts.length > 1) {
+		pendingPromo = { from, to };
+		showPromo(chess.get(from as Square)!.color);
+	} else doMove(from, to);
+	return true;
+}
+
 boardEl.addEventListener("click", (e) => {
-	if (busy) return;
+	// 드래그로 놓은 직후 따라오는 click 은 무시한다
+	if (busy || dragged) return;
 	const sq = (e.target as HTMLElement).closest<HTMLElement>(".sq")?.dataset.sq;
 	if (!sq) return;
 	if (picking) {
@@ -809,18 +931,83 @@ boardEl.addEventListener("click", (e) => {
 	}
 	// AI 차례에는 사람 클릭으로 수를 두지 못한다
 	if (modeEl.value.startsWith("ai") && chess.turn() === aiSide()) return;
-	const moves = legalMoves(chess, heat);
-	if (sel && moves.some((m) => m.from === sel && m.to === sq)) {
-		const opts = moves.filter((m) => m.from === sel && m.to === sq);
-		if (opts.length > 1) {
-			pendingPromo = { from: sel, to: sq };
-			showPromo(chess.get(sel as Square)!.color);
-		} else doMove(sel, sq);
-	} else {
-		sel = moves.some((m) => m.from === sq) ? sq : null;
+	if (sel && tryMove(sel, sq)) return;
+	sel = legalMoves(chess, heat).some((m) => m.from === sq) ? sq : null;
+	render();
+});
+
+// 드래그 이동 — pointerdown 에서 클릭과 같은 규칙으로 선택하고, 4px 이상 움직이면
+// 고스트 이미지를 포인터에 붙인다. 놓은 칸이 합법이면 tryMove, 아니면 선택 해제
+let drag: {
+	sq: string;
+	id: number;
+	ghost: HTMLImageElement | null;
+	x: number;
+	y: number;
+} | null = null;
+let dragged = false;
+
+boardEl.addEventListener("pointerdown", (e) => {
+	if (e.button !== 0 || busy || picking) return;
+	if (modeEl.value.startsWith("ai") && chess.turn() === aiSide()) return;
+	const sq = (e.target as HTMLElement).closest<HTMLElement>(".sq")?.dataset.sq;
+	if (!sq || !legalMoves(chess, heat).some((m) => m.from === sq)) return;
+	e.preventDefault();
+	drag = { sq, id: e.pointerId, ghost: null, x: e.clientX, y: e.clientY };
+	if (sel !== sq) {
+		sel = sq;
 		render();
 	}
 });
+
+boardEl.addEventListener("pointermove", (e) => {
+	if (!drag || e.pointerId !== drag.id) return;
+	if (!drag.ghost) {
+		if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) return;
+		const cell = boardEl.querySelector<HTMLElement>(`[data-sq="${drag.sq}"]`);
+		const pc = cell?.querySelector<HTMLImageElement>(".pc");
+		if (!cell || !pc) return;
+		boardEl.setPointerCapture(e.pointerId);
+		cell.classList.add("drag-src");
+		const ghost = document.createElement("img");
+		ghost.className = "drag-ghost";
+		ghost.src = pc.src;
+		ghost.alt = "";
+		ghost.style.width = `${pc.offsetWidth}px`;
+		ghost.style.height = `${pc.offsetHeight}px`;
+		document.body.append(ghost);
+		drag.ghost = ghost;
+	}
+	drag.ghost.style.left = `${e.clientX - drag.ghost.offsetWidth / 2}px`;
+	drag.ghost.style.top = `${e.clientY - drag.ghost.offsetHeight / 2}px`;
+});
+
+function endDrag(e: PointerEvent) {
+	if (!drag || e.pointerId !== drag.id) return;
+	const { sq, ghost } = drag;
+	drag = null;
+	// 고스트가 없으면 움직이지 않은 것 — 뒤따르는 click 이 처리한다
+	if (!ghost) return;
+	ghost.remove();
+	boardEl.querySelector(".drag-src")?.classList.remove("drag-src");
+	dragged = true;
+	setTimeout(() => {
+		dragged = false;
+	});
+	const to =
+		e.type === "pointerup"
+			? document
+					.elementFromPoint(e.clientX, e.clientY)
+					?.closest<HTMLElement>(".sq")?.dataset.sq
+			: undefined;
+	if (to === sq) return;
+	if (!to || busy || !tryMove(sq, to)) {
+		sel = null;
+		render();
+	}
+}
+boardEl.addEventListener("pointerup", endDrag);
+boardEl.addEventListener("pointercancel", endDrag);
 
 function newGame() {
 	clearTimeout(pending);
@@ -1016,6 +1203,17 @@ document.body.dataset.board = themeEl.value;
 themeEl.addEventListener("change", () => {
 	document.body.dataset.board = themeEl.value;
 	writeStore(THEME_KEY, themeEl.value);
+});
+
+pieceEl.value = readStore(PIECE_KEY) ?? "cburnett";
+if (!pieceEl.value) pieceEl.value = "cburnett";
+PIECE = PIECE_SETS[pieceEl.value]!;
+document.body.dataset.piece = pieceEl.value;
+pieceEl.addEventListener("change", () => {
+	PIECE = PIECE_SETS[pieceEl.value]!;
+	document.body.dataset.piece = pieceEl.value;
+	writeStore(PIECE_KEY, pieceEl.value);
+	render();
 });
 
 // 규칙은 첫 방문에만 펼쳐 두고, 이후엔 마지막으로 둔 상태(기본 접힘)를 따른다

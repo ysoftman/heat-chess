@@ -306,6 +306,7 @@
         grid-template-columns: repeat(8, 1fr);
         grid-template-rows: repeat(8, 1fr);
         position: relative;
+        touch-action: none; /* 터치 드래그가 스크롤로 새지 않게 */
         width: 100%;
         aspect-ratio: 1;
         border: 8px solid var(--surface-hi);
@@ -346,6 +347,57 @@
           inset 0 0 0 3px var(--accent),
           inset 0 0 18px color-mix(in srgb, var(--accent) 27%, transparent);
       }
+      /* 선택한 기물 — 살짝 들어 올린 뒤 둥둥 떠 있는다. transform 만 써서
+         열·에어컨 글로우(filter)와 겹치지 않는다. 보드가 overflow:hidden 이라 끝 랭크에서는 꼭지가 조금 잘린다 */
+      .sq.sel .pc {
+        animation:
+          lift 0.18s ease-out forwards,
+          float 1.6s ease-in-out 0.18s infinite;
+      }
+      /* 드래그 중 — 원래 칸의 기물은 숨기고 고스트가 포인터를 따라간다 */
+      .sq.drag-src .pc {
+        visibility: hidden;
+      }
+      .drag-ghost {
+        position: fixed;
+        scale: 1.1; /* 위치는 JS 가 left/top 으로 잡는다 — transform 과 섞으면 이동량까지 커진다 */
+        pointer-events: none;
+        z-index: 10;
+        filter: drop-shadow(0 8px 8px #0008);
+      }
+      @keyframes lift {
+        to {
+          transform: translateY(-5%) scale(1.05);
+        }
+      }
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(-5%) scale(1.05);
+        }
+        50% {
+          transform: translateY(-10%) scale(1.05);
+        }
+      }
+      /* 잡힌 기물 파괴 연출(캐릭터 세트) — 5프레임 가로 스트립을 steps 로 넘기고 끝나면 JS 가 지운다.
+         z4: 베벨(z2)·아이템 연출(z3) 위 */
+      .smash {
+        position: absolute;
+        z-index: 4;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .smash img {
+        display: block;
+        width: 500%;
+        height: 100%;
+        animation: smash 0.6s steps(5, end) forwards;
+      }
+      @keyframes smash {
+        to {
+          transform: translateX(-100%);
+        }
+      }
       /* 직전 수 — 출발·도착 칸. 열(난색)·에어컨(한색)과 겹치지 않는 올리브 틴트 */
       .sq.last {
         background-image: linear-gradient(#9bc7004d, #9bc7004d);
@@ -377,6 +429,11 @@
       .pc {
         width: 86%;
         height: 86%;
+      }
+      /* 카툰 세트는 가늘고 길어서 칸을 꽉 채워야 클래식과 비슷한 덩치로 보인다 (그림자는 이미지에 포함) */
+      body[data-piece="cartoon"] .pc {
+        width: 100%;
+        height: 100%;
       }
       .hot {
         filter: drop-shadow(
@@ -998,6 +1055,10 @@
           animation: none;
           transition: none;
         }
+        .sq.sel .pc {
+          animation: none;
+          transform: translateY(-5%) scale(1.05);
+        }
         .sq.aircon::before,
         .sq.aircon::after {
           opacity: 0.8;
@@ -1205,6 +1266,14 @@
                 <option value="brown">브라운</option>
                 <option value="blue">블루</option>
                 <option value="green">그린</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>기물</span>
+              <select id="piece" title="기물 모양">
+                <option value="cburnett">클래식</option>
+                <option value="cartoon">카툰</option>
+                <option value="chara">캐릭터</option>
               </select>
             </label>
           </div>

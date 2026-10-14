@@ -379,7 +379,7 @@
           transform: translateY(-10%) scale(1.05);
         }
       }
-      /* 잡힌 기물 파괴 연출(캐릭터 세트) — 5프레임 가로 스트립을 steps 로 넘기고 끝나면 JS 가 지운다.
+      /* 잡힌 기물 파괴 연출(치비 세트) — 5프레임 가로 스트립을 steps 로 넘기고 끝나면 JS 가 지운다.
          z4: 베벨(z2)·아이템 연출(z3) 위 */
       .smash {
         position: absolute;
@@ -804,7 +804,7 @@
       .field:has(> select[hidden]) {
         display: none;
       }
-      /* 이모지 자리 대체 아이콘 (src/icon/*.webp, fan.svg) — 글자보다 크게 키워 부각하고,
+      /* 이모지 자리 대체 아이콘 (src/icon/*.webp) — 글자보다 크게 키워 부각하고,
          음수 세로 마진으로 줄 높이는 늘리지 않는다. 그림자로 바탕에서 띄운다 */
       .ico {
         width: 1.5em;
@@ -1212,10 +1212,12 @@
         <div id="controls">
           <div class="actions">
             <button type="button" id="new-game" title="현재 모드로 새 게임">
+              <img src="./src/icon/restart.webp" alt="" class="ico" />
               새 게임
             </button>
             <button type="button" id="undo" title="수 되돌리기" disabled>
-              ↩ 되돌리기
+              <img src="./src/icon/undo.webp" alt="" class="ico" />
+              되돌리기
             </button>
           </div>
           <div id="items"></div>
@@ -1271,9 +1273,9 @@
             <label class="field">
               <span>기물</span>
               <select id="piece" title="기물 모양">
+                <option value="chibi">치비</option>
                 <option value="cburnett">클래식</option>
                 <option value="cartoon">카툰</option>
-                <option value="chara">캐릭터</option>
               </select>
             </label>
           </div>
@@ -1296,7 +1298,7 @@
             </li>
             <li data-modes="heat item">
               열이 <b>4</b>에 닿으면 과열
-              <span class="badge overheat"><img src="./src/icon/fire.webp" alt="" class="ico" />2</span>. 그 기물은
+              <span class="badge overheat"><img src="./src/icon/lock.webp" alt="" class="ico" />2</span>. 그 기물은
               <b>내 차례 2번</b> 동안 못 움직인다. 풀리면 열은 0부터 다시
             </li>
             <li data-modes="heat item">
@@ -1324,7 +1326,7 @@
               <b>각각 1회씩</b> 발동한다. 발동해도 턴은 소모하지 않는다
               <ul>
                 <li>
-                  <img src="./src/fan.svg" alt="" class="ico" />
+                  <img src="./src/icon/fan.webp" alt="" class="ico" />
                   <b>선풍기</b>: 바람으로 내 <b>과열 기물을 전부 해제</b>한다
                 </li>
                 <li>

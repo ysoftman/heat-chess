@@ -1,5 +1,4 @@
 import { Chess, type Move, type Square } from "chess.js";
-import fanIcon from "./fan.svg";
 import { coffeeFx, domeFx, fanFx } from "./fx";
 import {
 	airconAfter,
@@ -20,8 +19,13 @@ import {
 import coffeeIcon from "./icon/coffee.webp";
 import domeIcon from "./icon/dome.webp";
 import doneIcon from "./icon/done.webp";
+import fanIcon from "./icon/fan.webp";
 import fireIcon from "./icon/fire.webp";
 import giftIcon from "./icon/gift.webp";
+import heat1Icon from "./icon/heat1.webp";
+import heat2Icon from "./icon/heat2.webp";
+import heat3Icon from "./icon/heat3.webp";
+import lockIcon from "./icon/lock.webp";
 import snowIcon from "./icon/snowflake.webp";
 import soundOffIcon from "./icon/sound-off.webp";
 import soundOnIcon from "./icon/sound-on.webp";
@@ -45,30 +49,20 @@ import cwN from "./piece/cartoon/wN.webp";
 import cwP from "./piece/cartoon/wP.webp";
 import cwQ from "./piece/cartoon/wQ.webp";
 import cwR from "./piece/cartoon/wR.webp";
-import tbB from "./piece/chara/bB.webp";
-import tbBx from "./piece/chara/bB-smash.webp";
-import tbK from "./piece/chara/bK.webp";
-import tbKx from "./piece/chara/bK-smash.webp";
-import tbN from "./piece/chara/bN.webp";
-import tbNx from "./piece/chara/bN-smash.webp";
-import tbP from "./piece/chara/bP.webp";
-import tbPx from "./piece/chara/bP-smash.webp";
-import tbQ from "./piece/chara/bQ.webp";
-import tbQx from "./piece/chara/bQ-smash.webp";
-import tbR from "./piece/chara/bR.webp";
-import tbRx from "./piece/chara/bR-smash.webp";
-import twB from "./piece/chara/wB.webp";
-import twBx from "./piece/chara/wB-smash.webp";
-import twK from "./piece/chara/wK.webp";
-import twKx from "./piece/chara/wK-smash.webp";
-import twN from "./piece/chara/wN.webp";
-import twNx from "./piece/chara/wN-smash.webp";
-import twP from "./piece/chara/wP.webp";
-import twPx from "./piece/chara/wP-smash.webp";
-import twQ from "./piece/chara/wQ.webp";
-import twQx from "./piece/chara/wQ-smash.webp";
-import twR from "./piece/chara/wR.webp";
-import twRx from "./piece/chara/wR-smash.webp";
+import hbX from "./piece/chibi/b-smash.webp";
+import hbB from "./piece/chibi/bB.webp";
+import hbK from "./piece/chibi/bK.webp";
+import hbN from "./piece/chibi/bN.webp";
+import hbP from "./piece/chibi/bP.webp";
+import hbQ from "./piece/chibi/bQ.webp";
+import hbR from "./piece/chibi/bR.webp";
+import hwX from "./piece/chibi/w-smash.webp";
+import hwB from "./piece/chibi/wB.webp";
+import hwK from "./piece/chibi/wK.webp";
+import hwN from "./piece/chibi/wN.webp";
+import hwP from "./piece/chibi/wP.webp";
+import hwQ from "./piece/chibi/wQ.webp";
+import hwR from "./piece/chibi/wR.webp";
 import wB from "./piece/wB.svg";
 import wK from "./piece/wK.svg";
 import wN from "./piece/wN.svg";
@@ -76,7 +70,7 @@ import wP from "./piece/wP.svg";
 import wQ from "./piece/wQ.svg";
 import wR from "./piece/wR.svg";
 
-// cburnett: lichess (lila) 세트 — GPLv2+ / cartoon·chara: 아이콘 이미지를 잘라 넣은 세트. 출처는 README 참고
+// cburnett: lichess (lila) 세트 — GPLv2+ / cartoon·chibi: 아이콘 이미지를 잘라 넣은 세트. 출처는 README 참고
 const PIECE_SETS: Record<string, Record<string, string>> = {
 	cburnett: {
 		wk: wK,
@@ -106,37 +100,25 @@ const PIECE_SETS: Record<string, Record<string, string>> = {
 		bn: cbN,
 		bp: cbP,
 	},
-	chara: {
-		wk: twK,
-		wq: twQ,
-		wr: twR,
-		wb: twB,
-		wn: twN,
-		wp: twP,
-		bk: tbK,
-		bq: tbQ,
-		br: tbR,
-		bb: tbB,
-		bn: tbN,
-		bp: tbP,
+	chibi: {
+		wk: hwK,
+		wq: hwQ,
+		wr: hwR,
+		wb: hwB,
+		wn: hwN,
+		wp: hwP,
+		bk: hbK,
+		bq: hbQ,
+		br: hbR,
+		bb: hbB,
+		bn: hbN,
+		bp: hbP,
 	},
 };
-let PIECE = PIECE_SETS.cburnett!;
-// 캐릭터 세트의 부서지는 5프레임 스트립(640x128) — 잡힐 때 .smash 오버레이로 재생한다
-const SMASH: Record<string, string> = {
-	wk: twKx,
-	wq: twQx,
-	wr: twRx,
-	wb: twBx,
-	wn: twNx,
-	wp: twPx,
-	bk: tbKx,
-	bq: tbQx,
-	br: tbRx,
-	bb: tbBx,
-	bn: tbNx,
-	bp: tbPx,
-};
+let PIECE = PIECE_SETS.chibi!;
+// 치비 세트에서 잡힐 때 .smash 오버레이로 재생하는 부서지는 5프레임 스트립(750x150).
+// 아틀라스에 킹 스트립만 있어 색별 하나를 모든 기물이 공용한다
+const SMASH: Record<string, string> = { w: hwX, b: hbX };
 
 const NAME: Record<string, string> = {
 	k: "킹",
@@ -448,7 +430,7 @@ function updateUndo() {
 	undoEl.disabled = busy || picking !== null || history.length === 0;
 }
 
-// 이모지 자리를 대신하는 아이콘 이미지 (src/icon/*.webp, fan.svg) — 크기는 CSS .ico 가 글자에 맞춘다
+// 이모지 자리를 대신하는 아이콘 이미지 (src/icon/*.webp) — 크기는 CSS .ico 가 글자에 맞춘다
 function ico(src: string, alt = ""): HTMLImageElement {
 	const img = document.createElement("img");
 	img.src = src;
@@ -456,6 +438,9 @@ function ico(src: string, alt = ""): HTMLImageElement {
 	img.className = "ico";
 	return img;
 }
+
+// 열 1·2·3 배지 아이콘 (과열 직전인 3 이 최대, 열돔 중엔 1 까지만 온다)
+const HEAT_ICONS = [heat1Icon, heat2Icon, heat3Icon];
 
 const ITEM_INFO: Record<Item, { icon: string; label: string; desc: string }> = {
 	fan: { icon: fanIcon, label: "선풍기", desc: "내 과열 기물을 전부 해제" },
@@ -594,10 +579,10 @@ function aiWantsItem(): Item | null {
 
 // 잡힌 기물이 부서지는 연출 — 칸 위치에 오버레이를 얹고 스트립을 CSS steps() 로 넘긴다.
 // 칸이 아니라 보드에 붙여서 render() 가 칸을 다시 그려도 살아남는다
-function smash(sq: string, key: string) {
+function smash(sq: string, color: string) {
 	if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 	const cell = boardEl.querySelector<HTMLElement>(`[data-sq="${sq}"]`);
-	const src = SMASH[key];
+	const src = SMASH[color];
 	if (!cell || !src) return;
 	const el = document.createElement("div");
 	el.className = "smash";
@@ -681,8 +666,11 @@ function render() {
 						badge.className = `badge ${cell.lock ? "overheat" : ""}`;
 						badge.replaceChildren(
 							...(cell.lock
-								? [ico(fireIcon), String(cell.lock)]
-								: [String(cell.heat)]),
+								? [ico(lockIcon), String(cell.lock)]
+								: [
+										ico(HEAT_ICONS[Math.min(cell.heat, 3) - 1]!),
+										String(cell.heat),
+									]),
 						);
 						el.append(badge);
 					}
@@ -751,8 +739,8 @@ function doMove(
 	const hit = !!move.captured && airconSq[foe] === capturedSquare(move);
 	if (hit) airconSq[foe] = null;
 	render();
-	if (move.captured && pieceEl.value === "chara")
-		smash(capturedSquare(move), foe + move.captured);
+	if (move.captured && pieceEl.value === "chibi")
+		smash(capturedSquare(move), foe);
 	playSound(move, overheated);
 	if (hit) {
 		busy = true;
@@ -1205,8 +1193,8 @@ themeEl.addEventListener("change", () => {
 	writeStore(THEME_KEY, themeEl.value);
 });
 
-pieceEl.value = readStore(PIECE_KEY) ?? "cburnett";
-if (!pieceEl.value) pieceEl.value = "cburnett";
+pieceEl.value = readStore(PIECE_KEY) ?? "chibi";
+if (!pieceEl.value) pieceEl.value = "chibi";
 PIECE = PIECE_SETS[pieceEl.value]!;
 document.body.dataset.piece = pieceEl.value;
 pieceEl.addEventListener("change", () => {

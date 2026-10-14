@@ -1,6 +1,6 @@
 // 아이템 발동 연출 — 선풍기(fanFx) / 뜨거운 아메리카노(coffeeFx) / 이중열돔(domeFx).
-import fanSvg from "./fan.svg";
 import coffeeIcon from "./icon/coffee.webp";
+import fanIcon from "./icon/fan.webp";
 
 // CSS 는 모듈 로드 시 <style> 로 1회 주입하고, 일시 연출 노드는 타이머로 스스로 제거한다.
 // (reduced-motion 에서 animation 이 꺼지면 animationend 가 안 오므로 타이머 제거가 안전하다)
@@ -17,7 +17,7 @@ const CSS = `
 	pointer-events: none;
 	z-index: 3;
 }
-/* 선풍기 — 회전하는 팬 SVG(fan.svg) + 퍼지는 바람 링 (바람 링은 에어콘과 같은 한색 계열) */
+/* 선풍기 — 좌우로 고개를 젓는 선풍기 아이콘 + 퍼지는 바람 링 (바람 링은 에어콘과 같은 한색 계열) */
 .fx-fan {
 	display: grid;
 	place-items: center;
@@ -25,7 +25,7 @@ const CSS = `
 .fx-fan img {
 	width: 48%;
 	filter: drop-shadow(0 0 6px #6fd3ff) drop-shadow(0 0 14px #4fb8ff88);
-	animation: fx-spin 0.5s linear 3;
+	animation: fx-fan-sway 0.5s ease-in-out 3 alternate;
 }
 .fx-fan::after {
 	content: "";
@@ -36,9 +36,12 @@ const CSS = `
 	opacity: 0;
 	animation: fx-wind-ring 0.75s ease-out 2;
 }
-@keyframes fx-spin {
+@keyframes fx-fan-sway {
+	from {
+		transform: translateX(-10%) rotate(-12deg);
+	}
 	to {
-		transform: rotate(360deg);
+		transform: translateX(10%) rotate(12deg);
 	}
 }
 @keyframes fx-wind-ring {
@@ -273,13 +276,13 @@ function overlay(boardEl: HTMLElement, sq: string, className: string) {
 	return el;
 }
 
-// 선풍기: squares 의 각 칸 위에 팬(SVG)이 돌며 바람이 부는 연출 (~1.5초 후 자동 제거)
+// 선풍기: squares 의 각 칸 위에 선풍기가 고개를 저으며 바람이 부는 연출 (~1.5초 후 자동 제거)
 export function fanFx(boardEl: HTMLElement, squares: string[]): void {
 	for (const sq of squares) {
 		const el = overlay(boardEl, sq, "fx-fan");
 		if (!el) continue;
 		const img = document.createElement("img");
-		img.src = fanSvg;
+		img.src = fanIcon;
 		img.alt = "";
 		el.append(img);
 	}

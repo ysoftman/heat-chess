@@ -16,6 +16,6 @@
     "dev": "bun ./index.html",
     "build": "bun scripts/build.ts",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "bun --bun tsc --noEmit"
   }
 }

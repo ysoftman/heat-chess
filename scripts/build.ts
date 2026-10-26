@@ -1,18 +1,11 @@
-import { execSync } from "node:child_process";
+import { $ } from "bun";
 
-function git(cmd: string): string {
-	try {
-		return execSync(`git ${cmd}`, {
-			encoding: "utf-8",
-			stdio: ["ignore", "pipe", "ignore"],
-		}).trim();
-	} catch {
-		return "";
-	}
+async function git(...args: string[]): Promise<string> {
+	return (await $`git ${args}`.quiet().nothrow().text()).trim();
 }
 
-const version = git("describe --tags --abbrev=0") || "develop";
-const commit = git("rev-parse --short HEAD") || "dev";
+const version = (await git("describe", "--tags", "--abbrev=0")) || "develop";
+const commit = (await git("rev-parse", "--short", "HEAD")) || "dev";
 const time = new Date().toISOString();
 
 const out = await Bun.build({
